@@ -12,7 +12,7 @@ export const nicho: Template = {
     { id: 'altura', label: 'Altura', tipo: 'numero', padrao: 300, unidade: 'mm', min: 100, max: 2000, passo: 10 },
     { id: 'profundidade', label: 'Profundidade', tipo: 'numero', padrao: 200, unidade: 'mm', min: 60, max: 600, passo: 5 },
     { id: 'chapaId', label: 'Chapa', tipo: 'chapa', padrao: 'mdf-branco-15' },
-    { id: 'prateleiras', label: 'Prateleiras', tipo: 'numero', padrao: 0, min: 0, max: 6, passo: 1 },
+    { id: 'prateleiras', label: 'Prateleiras', tipo: 'numero', padrao: 1, min: 0, max: 6, passo: 1, dica: '1 prateleira = 2 andares.' },
     { id: 'fundo', label: 'Fundo em HDF 3mm', tipo: 'booleano', padrao: true },
     { id: 'fitaId', label: 'Fita de borda', tipo: 'fita', padrao: 'fita-branca-22', avancado: true },
   ],

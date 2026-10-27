@@ -114,11 +114,23 @@ export type Box3d = {
 export type ItemFerragem = { ferragemId: string; quantidade: number };
 export type Extra = { descricao: string; custoCentavos: number; detalhe?: string };
 
-export type Projeto = {
+/** Um móvel paramétrico dentro do projeto, posicionado no espaço (mm) */
+export type Modulo = {
   id: string;
   nome: string;
   templateId: string;
   parametros: Record<string, number | boolean | string>;
+  /** deslocamento da origem do módulo (centro embaixo, atrás), mm */
+  posicao: [number, number, number];
+};
+
+export type Projeto = {
+  id: string;
+  nome: string;
+  /** 'livre' = só lista de peças; qualquer outro = projeto composto por módulos */
+  templateId: string;
+  parametros: Record<string, number | boolean | string>;
+  modulos?: Modulo[];
   pecas: Peca[];
   ferragens: ItemFerragem[];
   extras: Extra[];

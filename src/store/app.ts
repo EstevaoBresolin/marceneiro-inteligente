@@ -5,6 +5,7 @@ import { novoId } from '../domain/money';
 import type { Catalogo, Config, Projeto } from '../domain/types';
 import { db, gravarKv, lerKv } from '../lib/db';
 import { padroes, templatePorId } from '../templates';
+import { nomeCurto, normalizarProjeto } from '../domain/composicao';
 
 type AppState = {
   carregado: boolean;
@@ -49,7 +50,7 @@ export const useApp = create<AppState>()(
         set((s) => {
           s.catalogo = mesclarPadrao(catalogo, CATALOGO_PADRAO);
           s.config = mesclarPadrao(config, CONFIG_PADRAO);
-          s.projetos = projetos;
+          s.projetos = projetos.map(normalizarProjeto);
           s.carregado = true;
         });
       } catch {
@@ -91,14 +92,13 @@ export const useApp = create<AppState>()(
     novoProjeto: (templateId) => {
       const t = templatePorId(templateId);
       const params = padroes(t);
-      const { catalogo, config } = get();
-      const gerado = t.gerar(params, { catalogo, config });
       const p: Projeto = {
         id: novoId(),
         nome: t.id === 'livre' ? 'Lista de peças' : t.nome,
         templateId: t.id,
         parametros: params,
-        pecas: gerado.pecas,
+        modulos: t.id === 'livre' ? undefined : [{ id: 'm1', nome: nomeCurto(t.id), templateId: t.id, parametros: params, posicao: [0, 0, 0] }],
+        pecas: [],
         ferragens: [],
         extras: [],
         horasMaoDeObra: t.horasSugeridas,

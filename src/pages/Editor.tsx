@@ -1,36 +1,32 @@
-import { ArrowLeft, Box, Camera, DoorOpen, Eye, FileDown, FileSpreadsheet, Image, Layers, Plus, Ruler, Trash2 } from 'lucide-react';
+import { ArrowLeft, Box, Camera, DoorOpen, Eye, FileDown, FileSpreadsheet, Image, Layers, Move, Plus, Ruler, Trash2 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { CustosView } from '../components/CustosView';
-import { ParamForm } from '../components/ParamForm';
+import { PainelModulos } from '../components/PainelModulos';
 import { TabelaPecas } from '../components/TabelaPecas';
 import { Abas, Botao, Campo, DinheiroInput, NumeroInput, TextoInput, cx } from '../components/ui';
 import { calcularCustos } from '../costing/calcularCustos';
 import { precoSugerido } from '../costing/precoSugerido';
 import { PlanoCorteView } from '../cutplan/PlanoCorteView';
 import { brl, fmtNum, novoId } from '../domain/money';
-import type { Peca, Projeto } from '../domain/types';
+import { limitesDe, montarProjeto, moduloDaPeca, nomeCurto, nomeUnico, normalizarProjeto, parametrosHerdados, posicaoAoLado, proximoIdModulo, SEP, type Lado } from '../domain/composicao';
+import type { Modulo, Peca, Projeto } from '../domain/types';
 import { ir } from '../lib/router';
 import { usePlanoCorte } from '../lib/usePlanoCorte';
 import { useApp } from '../store/app';
-import { templatePorId, TEMPLATES } from '../templates';
+import { templatePorId } from '../templates';
 import type { CenaHandle, OpcoesCena, Vista } from '../viewer3d/Scene';
 
 const Cena = lazy(() => import('../viewer3d/Scene').then((m) => ({ default: m.Cena })));
 
 type Aba = 'pecas' | 'corte' | 'custos' | 'exportar';
 
-/** junta as peças geradas pelo template com as que o usuário editou à mão */
-function mesclarPecas(geradas: Peca[], salvas: Peca[]): Peca[] {
-  return geradas.map((g) => {
-    const s = salvas.find((x) => x.id === g.id && x.editadaManualmente);
-    return s ? { ...s, box3d: g.box3d, somente3d: g.somente3d } : g;
-  });
-}
 
 export function Editor({ id }: { id: string }) {
   const { projetos, catalogo, config, salvarProjeto, carregado } = useApp();
   const original = projetos.find((p) => p.id === id);
-  const [p, setP] = useState<Projeto | null>(original ?? null);
+  const [p, setP] = useState<Projeto | null>(original ? normalizarProjeto(original) : null);
+  const [moduloSel, setModuloSel] = useState<string | null>(null);
+  const [modoMover, setModoMover] = useState(false);
   const [aba, setAba] = useState<Aba>('pecas');
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [opcoes, setOpcoes] = useState<OpcoesCena>({ portaAberta: false, explodida: false, transparente: false, cotas: true });
@@ -40,7 +36,7 @@ export function Editor({ id }: { id: string }) {
   const cena = useRef<CenaHandle>(null);
 
   useEffect(() => {
-    if (!p && original) setP(original);
+    if (!p && original) setP(normalizarProjeto(original));
   }, [original, p]);
 
   // salva com debounce
@@ -51,15 +47,19 @@ export function Editor({ id }: { id: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p]);
 
-  const template = templatePorId(p?.templateId ?? 'livre');
-  const livre = template.id === 'livre';
+  const livre = p?.templateId === 'livre';
   const ctx = useMemo(() => ({ catalogo, config }), [catalogo, config]);
 
-  const gerado = useMemo(() => (p && !livre ? template.gerar(p.parametros, ctx) : null), [p?.parametros, template, ctx, livre]); // eslint-disable-line react-hooks/exhaustive-deps
-  const erros = useMemo(() => (p && template.validar ? template.validar(p.parametros, ctx) : []), [p?.parametros, template, ctx]); // eslint-disable-line react-hooks/exhaustive-deps
-  const pecas = useMemo(() => (!p ? [] : gerado ? mesclarPecas(gerado.pecas, p.pecas) : p.pecas), [gerado, p]);
-  const ferragens = useMemo(() => [...(gerado?.ferragens ?? []), ...(p?.ferragens ?? [])], [gerado, p?.ferragens]);
-  const extras = useMemo(() => [...(gerado?.extras ?? []), ...(p?.extras ?? [])], [gerado, p?.extras]);
+  const montado = useMemo(() => (p ? montarProjeto(p, ctx) : null), [p, ctx]);
+  const pecas = useMemo(() => montado?.pecas ?? [], [montado]);
+  const ferragens = montado?.ferragens ?? [];
+  const extras = montado?.extras ?? [];
+  const montados = useMemo(() => montado?.modulos ?? [], [montado]);
+  const modulosCena = useMemo(
+    () => montados.map((m) => ({ id: m.modulo.id, nome: m.modulo.nome, limitesLocais: m.limitesLocais, posicao: m.modulo.posicao })),
+    [montados],
+  );
+  const selMod = moduloSel && montados.some((m) => m.modulo.id === moduloSel) ? moduloSel : (montados[0]?.modulo.id ?? null);
   const lote = Math.max(1, p?.quantidadeLote ?? 1);
 
   const { plano, calculando } = usePlanoCorte(pecas, lote, catalogo.chapas, config.servico.kerf, config.servico.refilo);
@@ -79,6 +79,46 @@ export function Editor({ id }: { id: string }) {
     );
 
   const atualizar = (fn: (x: Projeto) => Projeto) => setP((x) => (x ? fn(x) : x));
+
+  // ---------- módulos ----------
+  const alterarModulo = (mid: string, fn: (m: Modulo) => Modulo) =>
+    atualizar((x) => ({ ...x, modulos: (x.modulos ?? []).map((m) => (m.id === mid ? fn(m) : m)) }));
+
+  const semOverridesDe = (x: Projeto, mid: string) => x.pecas.filter((q) => moduloDaPeca(q.id) !== mid);
+
+  const adicionarModulo = (templateId: string, lado: Lado, base?: Modulo) => {
+    const t = templatePorId(templateId);
+    const vizinho = montados.find((m) => m.modulo.id === selMod) ?? montados[montados.length - 1];
+    const params = base ? { ...base.parametros } : parametrosHerdados(t, vizinho, lado);
+    const local = limitesDe(t.gerar(params, ctx).pecas.flatMap((q) => (q.box3d ? [q.box3d] : []))) ?? { min: [0, 0, 0], max: [0, 0, 0] };
+    const mods = p.modulos ?? [];
+    const novo: Modulo = {
+      id: proximoIdModulo(mods),
+      nome: nomeUnico(base ? base.nome : nomeCurto(t.id), mods),
+      templateId: t.id,
+      parametros: params,
+      posicao: posicaoAoLado(vizinho, local, lado),
+    };
+    atualizar((x) => ({ ...x, modulos: [...(x.modulos ?? []), novo], horasMaoDeObra: Math.round((x.horasMaoDeObra + t.horasSugeridas) * 100) / 100 }));
+    setModuloSel(novo.id);
+    setVistaSeq((v) => v + 1);
+  };
+
+  const trocarTipo = (mid: string, templateId: string) => {
+    const t = templatePorId(templateId);
+    atualizar((x) => ({
+      ...x,
+      pecas: semOverridesDe(x, mid),
+      modulos: (x.modulos ?? []).map((m) =>
+        m.id === mid ? { ...m, templateId: t.id, nome: m.nome === nomeCurto(m.templateId) ? nomeCurto(t.id) : m.nome, parametros: Object.fromEntries(t.parametros.map((d) => [d.id, m.parametros[d.id] ?? d.padrao])) } : m,
+      ),
+    }));
+  };
+
+  const removerModulo = (mid: string) => {
+    atualizar((x) => ({ ...x, pecas: semOverridesDe(x, mid), modulos: (x.modulos ?? []).filter((m) => m.id !== mid) }));
+    setModuloSel(null);
+  };
 
   const alterarPeca = (peca: Peca) =>
     atualizar((x) => {
@@ -104,7 +144,7 @@ export function Editor({ id }: { id: string }) {
       const { baixar, csvListaCorte, pdfOrcamento, pdfPlanoCorte } = await import('../export/exportar');
       if (tipo === 'corte') await pdfPlanoCorte({ projeto: p.nome, plano, pecas, fitas: catalogo.fitas, lote });
       if (tipo === 'orcamento')
-        await pdfOrcamento({ projeto: p.nome, imagemPng: cena.current?.capturarPng() ?? null, dimensoes: gerado?.dimensoes, pecas, chapas: catalogo.chapas, fitas: catalogo.fitas, custos, venda: config.venda });
+        await pdfOrcamento({ projeto: p.nome, imagemPng: cena.current?.capturarPng() ?? null, dimensoes: montado?.limites ? { largura: Math.round(montado.limites.max[0] - montado.limites.min[0]), altura: Math.round(montado.limites.max[1] - montado.limites.min[1]), profundidade: Math.round(montado.limites.max[2] - montado.limites.min[2]) } : undefined, pecas, chapas: catalogo.chapas, fitas: catalogo.fitas, custos, venda: config.venda });
       if (tipo === 'csv') csvListaCorte(p.nome, pecas, catalogo.chapas, catalogo.fitas, lote);
       if (tipo === 'png') {
         const png = cena.current?.capturarPng();
@@ -144,30 +184,25 @@ export function Editor({ id }: { id: string }) {
                 <ArrowLeft className="size-4" /> Projetos
               </button>
               <TextoInput ariaLabel="Nome do projeto" className="h-10 font-cond text-lg font-semibold" valor={p.nome} onChange={(v) => atualizar((x) => ({ ...x, nome: v }))} />
-              <select
-                aria-label="Tipo de móvel"
-                className="mt-2 w-full bg-transparent text-[13px] text-tinta-2 outline-none"
-                value={p.templateId}
-                onChange={(e) => {
-                  const t = templatePorId(e.target.value);
-                  atualizar((x) => ({ ...x, templateId: t.id, parametros: Object.fromEntries(t.parametros.map((d) => [d.id, x.parametros[d.id] ?? d.padrao])), pecas: t.id === 'livre' ? pecas.filter((q) => !q.somente3d) : [] }));
-                }}
-              >
-                {TEMPLATES.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.nome}
-                  </option>
-                ))}
-              </select>
             </div>
 
-            {!livre && <ParamForm template={template} params={p.parametros} onChange={(params) => atualizar((x) => ({ ...x, parametros: params }))} catalogo={catalogo} />}
-            {erros.length > 0 && (
-              <ul className="rounded-md bg-[#fbeeeb] p-3 text-[13px] text-perigo">
-                {erros.map((e) => (
-                  <li key={e}>{e}</li>
-                ))}
-              </ul>
+            {livre ? (
+              <p className="text-[13px] text-tinta-3">Lista livre: adicione as peças na tabela ao lado.</p>
+            ) : (
+              <PainelModulos
+                montados={montados}
+                selecionado={selMod}
+                onSelecionar={setModuloSel}
+                onAlterar={alterarModulo}
+                onTrocarTipo={trocarTipo}
+                onAdicionar={(tid, lado) => adicionarModulo(tid, lado)}
+                onDuplicar={(mid) => {
+                  const m = montados.find((x) => x.modulo.id === mid);
+                  if (m) adicionarModulo(m.modulo.templateId, 'direita', m.modulo);
+                }}
+                onRemover={removerModulo}
+                catalogo={catalogo}
+              />
             )}
 
             <div className="grid grid-cols-2 gap-2 border-t border-linha pt-4">
@@ -208,12 +243,20 @@ export function Editor({ id }: { id: string }) {
                   ref={cena}
                   pecas={pecas}
                   chapas={catalogo.chapas}
-                  dimensoes={gerado?.dimensoes ?? { largura: 0, altura: 0, profundidade: 0 }}
+                  limites={montado?.limites ?? null}
+                  modulos={modulosCena}
+                  moduloSel={selMod}
+                  modoMover={modoMover}
+                  onMover={(mid, pos) => alterarModulo(mid, (m) => ({ ...m, posicao: pos }))}
                   opcoes={opcoes}
                   vista={vista}
                   vistaSeq={vistaSeq}
                   selecionada={selecionada}
                   onSelecionar={(sid) => {
+                    const mid = sid ? moduloDaPeca(sid) : null;
+                    if (mid) setModuloSel(mid);
+                    // no modo mover, o clique só escolhe o módulo
+                    if (modoMover) return;
                     setSelecionada(sid);
                     if (sid) setAba('pecas');
                   }}
@@ -224,7 +267,21 @@ export function Editor({ id }: { id: string }) {
                 {toggle('explodida', <Layers className="size-4" />, 'Explodir')}
                 {toggle('transparente', <Eye className="size-4" />, 'Ver dentro')}
                 {toggle('cotas', <Ruler className="size-4" />, 'Cotas')}
+                <button
+                  onClick={() => setModoMover((v) => !v)}
+                  aria-pressed={modoMover}
+                  title="Arrastar módulos"
+                  className={cx('flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium', modoMover ? 'bg-mdf text-white' : 'bg-painel/90 text-tinta-2 hover:text-tinta border border-linha')}
+                >
+                  <Move className="size-4" />
+                  <span className="hidden sm:inline">Mover</span>
+                </button>
               </div>
+              {modoMover && (
+                <div className="pointer-events-none absolute left-1/2 top-14 -translate-x-1/2 rounded-md bg-tinta/85 px-3 py-1.5 text-[12px] text-white">
+                  {montados.length > 1 ? 'Arraste um módulo: ele encosta sozinho no vizinho. Gire a vista arrastando o fundo.' : 'Adicione outro módulo para montar o conjunto.'}
+                </div>
+              )}
               <div className="absolute right-3 top-3 flex rounded-md border border-linha bg-painel/90 p-0.5">
                 {(['iso', 'frente', 'lado', 'topo'] as Vista[]).map((v) => (
                   <button
@@ -242,9 +299,9 @@ export function Editor({ id }: { id: string }) {
               <button onClick={() => exportar('png')} title="Salvar imagem" className="absolute bottom-3 right-3 flex h-8 items-center gap-1.5 rounded-md border border-linha bg-painel/90 px-2 text-[12px] text-tinta-2 hover:text-tinta">
                 <Camera className="size-4" /> Imagem
               </button>
-              {gerado && (
+              {montado?.limites && (
                 <div className="absolute bottom-3 left-3 rounded-md bg-painel/90 px-2 py-1 text-[12px] text-tinta-2 num border border-linha">
-                  {gerado.dimensoes.largura} × {gerado.dimensoes.altura} × {gerado.dimensoes.profundidade} mm
+                  {[0, 1, 2].map((i) => Math.round(montado.limites!.max[i] - montado.limites!.min[i])).join(' × ')} mm
                 </div>
               )}
             </div>
@@ -263,18 +320,30 @@ export function Editor({ id }: { id: string }) {
             />
             {aba === 'pecas' && (
               <>
-                <TabelaPecas
-                  pecas={pecas}
-                  chapas={catalogo.chapas}
-                  fitas={catalogo.fitas}
-                  lote={lote}
-                  selecionada={selecionada}
-                  onSelecionar={setSelecionada}
-                  onAlterar={alterarPeca}
-                  onAdicionar={livre ? adicionarPeca : undefined}
-                  onRemover={livre ? (pid) => atualizar((x) => ({ ...x, pecas: x.pecas.filter((q) => q.id !== pid) })) : undefined}
-                  onDestravar={livre ? undefined : destravar}
-                />
+                {(montados.length > 1 ? montados.map((m) => ({ titulo: m.modulo.nome, id: m.modulo.id })) : [{ titulo: '', id: null as string | null }]).map((sec) => (
+                  <div key={sec.id ?? 'todas'}>
+                    {sec.titulo && (
+                      <button
+                        onClick={() => setModuloSel(sec.id)}
+                        className={cx('mt-2 block px-3 pt-2 font-cond text-[15px] font-semibold', sec.id === selMod ? 'text-aco' : 'text-tinta')}
+                      >
+                        {sec.titulo}
+                      </button>
+                    )}
+                    <TabelaPecas
+                      pecas={sec.id ? pecas.filter((q) => q.id.startsWith(sec.id + SEP)) : pecas}
+                      chapas={catalogo.chapas}
+                      fitas={catalogo.fitas}
+                      lote={lote}
+                      selecionada={selecionada}
+                      onSelecionar={setSelecionada}
+                      onAlterar={alterarPeca}
+                      onAdicionar={livre ? adicionarPeca : undefined}
+                      onRemover={livre ? (pid) => atualizar((x) => ({ ...x, pecas: x.pecas.filter((q) => q.id !== pid) })) : undefined}
+                      onDestravar={livre ? undefined : destravar}
+                    />
+                  </div>
+                ))}
                 {!livre && pecas.some((x) => x.editadaManualmente) && (
                   <p className="px-3 pb-3 text-[12px] text-tinta-3">Peças com cadeado foram editadas à mão e não mudam quando você altera as medidas do móvel.</p>
                 )}

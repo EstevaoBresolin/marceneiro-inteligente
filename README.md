@@ -16,6 +16,7 @@ npm run build    # gera dist/ (pronto para a Vercel)
 ## O que já funciona (Fase 1)
 
 - **Modelos paramétricos**: armário de banheiro com espelho (1 ou 2 portas, espelho colado ou porta de espelho, nicho embaixo, fundo pregado ou embutido, duas formas de montagem), nicho, prateleira, suporte de monitor e lista livre.
+- **Módulos**: um projeto pode juntar vários móveis (ex.: armário + nicho ao lado). "Adicionar módulo" coloca o novo à esquerda, à direita, em cima ou embaixo do selecionado, herdando altura/largura, profundidade e chapa. No modo **Mover**, arraste os módulos no 3D: eles encostam sozinhos nas faces dos vizinhos. Cada módulo continua paramétrico e o plano de corte junta as peças de todos.
 - **3D**: girar, vistas (3D, frente, lado, topo), abrir porta, vista explodida, ver dentro, cotas, clicar na peça para achar a linha na tabela, salvar imagem PNG.
 - **Plano de corte**: cortes guilhotina (de ponta a ponta, executáveis na esquadrejadeira), kerf e refilo, respeita o veio, várias chapas, sobras reaproveitáveis, sequência de cortes e metros de corte. Roda num Web Worker.
 - **Custos**: chapa (inteira ou proporcional à área + perda), fita de borda em metros, aplicação, corte (por peça, metro, chapa ou incluso), furação por tipo, ferragens, espelho por m², extras e mão de obra. Cada valor mostra a conta.

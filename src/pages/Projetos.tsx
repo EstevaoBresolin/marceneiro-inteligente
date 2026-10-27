@@ -4,6 +4,7 @@ import { Botao, Titulo } from '../components/ui';
 import type { Projeto } from '../domain/types';
 import { ir } from '../lib/router';
 import { useApp } from '../store/app';
+import { montarProjeto } from '../domain/composicao';
 import { templatePorId, TEMPLATES, type Template } from '../templates';
 
 /** Silhueta frontal simples, desenhada a partir das caixas 3D (sem WebGL) */
@@ -20,7 +21,7 @@ function Miniatura({ projeto }: { projeto: Projeto }) {
     );
   let r;
   try {
-    r = t.gerar(projeto.parametros, { catalogo, config });
+    r = montarProjeto(projeto, { catalogo, config });
   } catch {
     return null;
   }
@@ -104,7 +105,7 @@ export function Projetos() {
               <div className="p-4 pb-2">
                 <h2 className="font-cond text-[17px] font-semibold">{p.nome}</h2>
                 <p className="text-[13px] text-tinta-3">
-                  {templatePorId(p.templateId).nome}
+                  {p.modulos && p.modulos.length > 1 ? p.modulos.map((m) => m.nome).join(' + ') : templatePorId(p.templateId).nome}
                   {p.quantidadeLote > 1 ? ` · lote de ${p.quantidadeLote}` : ''} · {new Date(p.atualizadoEm).toLocaleDateString('pt-BR')}
                 </p>
               </div>

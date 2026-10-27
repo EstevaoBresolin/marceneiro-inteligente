@@ -1,14 +1,20 @@
-import { ArrowLeft, Box, Camera, DoorOpen, Eye, FileDown, FileSpreadsheet, Hand, Image, Layers, MousePointer2, Plus, Redo2, Ruler, Trash2, Undo2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Box, Camera, DoorOpen, Eye, FileDown, FileSpreadsheet, Hand, Image, Layers, MousePointer2, Plus, Redo2, Ruler, Trash2, Undo2 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CustosView } from '../components/CustosView';
+import { DesenhosView } from '../components/DesenhosView';
+import { ManualView } from '../components/ManualView';
+import { numerarPecas } from '../domain/usinagem';
 import { Inspetor } from '../components/Inspetor';
 import { PainelModulos } from '../components/PainelModulos';
 import { TabelaPecas } from '../components/TabelaPecas';
-import { Abas, Botao, Campo, DinheiroInput, NumeroInput, TextoInput, cx } from '../components/ui';
+import { Abas, Botao, Campo, DinheiroInput, Interruptor, NumeroInput, TextoInput, cx } from '../components/ui';
 import { calcularCustos } from '../costing/calcularCustos';
 import { precoSugerido } from '../costing/precoSugerido';
 import { PlanoCorteView } from '../cutplan/PlanoCorteView';
 import {
+  compartilharLaterais,
+  detectarConflitos,
+  eixosDoModulo,
   idLocal,
   limitesDe,
   montarProjeto,
@@ -29,11 +35,11 @@ import { ir } from '../lib/router';
 import { usePlanoCorte } from '../lib/usePlanoCorte';
 import { useApp } from '../store/app';
 import { templatePorId } from '../templates';
-import type { CenaHandle, Ferramenta, OpcoesCena, Selecao, Vista } from '../viewer3d/Scene';
+import type { AlcaCena, CenaHandle, Ferramenta, OpcoesCena, Selecao, Vista } from '../viewer3d/Scene';
 
 const Cena = lazy(() => import('../viewer3d/Scene').then((m) => ({ default: m.Cena })));
 
-type Aba = 'pecas' | 'corte' | 'custos' | 'exportar';
+type Aba = 'pecas' | 'desenhos' | 'montagem' | 'corte' | 'custos' | 'exportar';
 
 const NADA: Selecao = { modulo: null, peca: null };
 const somarV = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -82,6 +88,11 @@ export function Editor({ id }: { id: string }) {
   const montados = useMemo(() => montado?.modulos ?? [], [montado]);
   const modulosCena = useMemo(() => montados.map((m) => ({ id: m.modulo.id, nome: m.modulo.nome, limitesLocais: m.limitesLocais, posicao: m.modulo.posicao })), [montados]);
   const lote = Math.max(1, p?.quantidadeLote ?? 1);
+  const conflitos = useMemo(() => detectarConflitos(pecas), [pecas]);
+  const numeros = useMemo(() => numerarPecas(pecas), [pecas]);
+  const [exportarManual, setExportarManual] = useState(false);
+  const [verConflitos, setVerConflitos] = useState(false);
+  const marcadas = useMemo(() => Object.fromEntries(conflitos.flatMap((c) => [[c.a, 'conflito' as const], [c.b, 'conflito' as const]])), [conflitos]);
 
   // seleção sempre válida
   const selValida: Selecao = useMemo(() => {
@@ -149,7 +160,7 @@ export function Editor({ id }: { id: string }) {
       posicao: posicaoAoLado(vizinho, local, lado),
       ...(base ? { removidas: base.removidas, deslocamentos: base.deslocamentos, pecasExtras: base.pecasExtras } : {}),
     };
-    atualizar((x) => ({ ...x, modulos: [...(x.modulos ?? []), novo], horasMaoDeObra: Math.round((x.horasMaoDeObra + t.horasSugeridas) * 100) / 100 }));
+    atualizar((x) => compartilharLaterais({ ...x, modulos: [...(x.modulos ?? []), novo], horasMaoDeObra: Math.round((x.horasMaoDeObra + t.horasSugeridas) * 100) / 100 }, ctx, novo.id));
     setSel({ modulo: novo.id, peca: null });
     setVistaSeq((v) => v + 1);
   };
@@ -172,6 +183,29 @@ export function Editor({ id }: { id: string }) {
     atualizar((x) => ({ ...x, pecas: semOverridesDe(x, mid), modulos: (x.modulos ?? []).filter((m) => m.id !== mid) }));
     setSel(NADA);
   };
+
+  const restaurarModulo = (mid: string) =>
+    alterarModulo(mid, (m) => {
+      const dx = (m.compartilhadas ?? []).reduce((acc, c) => acc + c.dx, 0);
+      return { ...m, removidas: [], deslocamentos: {}, compartilhadas: [], posicao: [m.posicao[0] - dx, m.posicao[1], m.posicao[2]] };
+    });
+
+  const reencaixar = () => atualizar((x) => compartilharLaterais(x, ctx, selValida.modulo ?? undefined));
+
+  const alternarCompartilhar = (ligado: boolean) =>
+    atualizar((x) => {
+      if (ligado) return compartilharLaterais({ ...x, compartilharLaterais: true }, ctx);
+      return {
+        ...x,
+        compartilharLaterais: false,
+        modulos: (x.modulos ?? []).map((m) => {
+          if (!m.compartilhadas?.length) return m;
+          const dx = m.compartilhadas.reduce((acc, c) => acc + c.dx, 0);
+          const tiradas = new Set(m.compartilhadas.map((c) => c.peca as string));
+          return { ...m, removidas: (m.removidas ?? []).filter((r) => !tiradas.has(r)), compartilhadas: [], posicao: [m.posicao[0] - dx, m.posicao[1], m.posicao[2]] as Vec3 };
+        }),
+      };
+    });
 
   const duplicarModulo = (mid: string) => {
     const m = montados.find((x) => x.modulo.id === mid);
@@ -206,10 +240,10 @@ export function Editor({ id }: { id: string }) {
       const d = depois.find((m) => m.modulo.id === mid);
       if (!a || !d) return prox;
       const encostado = (lado: 0 | 1) =>
-        antes.some((o) => o.modulo.id !== mid && Math.abs((lado === 0 ? o.limites.max[0] : o.limites.min[0]) - (lado === 0 ? a.limites.min[0] : a.limites.max[0])) < 1 && o.limites.max[1] > a.limites.min[1] && o.limites.min[1] < a.limites.max[1]);
+        antes.some((o) => o.modulo.id !== mid && Math.abs((lado === 0 ? o.corpo.max[0] : o.corpo.min[0]) - (lado === 0 ? a.corpo.min[0] : a.corpo.max[0])) < 1 && o.corpo.max[1] > a.corpo.min[1] && o.corpo.min[1] < a.corpo.max[1]);
       let dx = 0;
-      if (d.limites.min[0] > a.limites.min[0] + 0.5 && encostado(0)) dx = a.limites.min[0] - d.limites.min[0];
-      else if (d.limites.max[0] < a.limites.max[0] - 0.5 && encostado(1)) dx = a.limites.max[0] - d.limites.max[0];
+      if (d.corpo.min[0] > a.corpo.min[0] + 0.5 && encostado(0)) dx = a.corpo.min[0] - d.corpo.min[0];
+      else if (d.corpo.max[0] < a.corpo.max[0] - 0.5 && encostado(1)) dx = a.corpo.max[0] - d.corpo.max[0];
       if (!dx) return prox;
       return { ...prox, modulos: modulos.map((m) => (m.id === mid ? { ...m, posicao: [m.posicao[0] + dx, m.posicao[1], m.posicao[2]] as Vec3 } : m)) };
     });
@@ -296,6 +330,99 @@ export function Editor({ id }: { id: string }) {
       pecas: [...x.pecas, { id: novoId(), nome: `Peça ${x.pecas.length + 1}`, chapaId: catalogo.chapas[0]?.id ?? '', comprimento: 600, largura: 300, quantidade: 1, podeGirar: true, bordas: { c1: null, c2: null, l1: null, l2: null }, furos: [] }],
     }));
 
+  // ---------- alças de redimensionar ----------
+  const inicioAlca = useRef<{ id: string; mod: Modulo; valor: number; borda: number } | null>(null);
+
+  const alcas: AlcaCena[] = (() => {
+    if (livre || (espaco ? 'mao' : ferramenta) !== 'cursor') return [];
+    const fmt = (v: number) => `${Math.round(v)} mm`;
+    // tábua solta selecionada: puxa comprimento e largura
+    if (pecaSel?.box3d && pecaSel.livre3d && modSel) {
+      const b = pecaSel.box3d;
+      const o = pecaSel.livre3d.orientacao;
+      const eixos: { eixo: 0 | 1 | 2; campo: 'comprimento' | 'largura' }[] =
+        o === 'horizontal' ? [{ eixo: 0, campo: 'comprimento' }, { eixo: 2, campo: 'largura' }] : o === 'lateral' ? [{ eixo: 1, campo: 'comprimento' }, { eixo: 2, campo: 'largura' }] : [{ eixo: 0, campo: 'largura' }, { eixo: 1, campo: 'comprimento' }];
+      return eixos.flatMap(({ eixo, campo }) =>
+        ([1, -1] as const).map((sinal) => {
+          const pos: Vec3 = [...b.pos];
+          pos[eixo] += (sinal * b.size[eixo]) / 2;
+          return { id: `p|${pecaSel.id}|${eixo}|${sinal}|${campo}`, pos, eixo, sinal, rotulo: `${campo === 'comprimento' ? 'Comprimento' : 'Largura'} ${fmt(pecaSel[campo])}` };
+        }),
+      );
+    }
+    if (!modSel || pecaSel) return [];
+    const l = modSel.limites;
+    const c: Vec3 = [(l.min[0] + l.max[0]) / 2, (l.min[1] + l.max[1]) / 2, (l.min[2] + l.max[2]) / 2];
+    return eixosDoModulo(modSel.template, modSel.modulo.parametros).flatMap(({ eixo, param }) => {
+      const def = modSel.template.parametros.find((d) => d.id === param);
+      const lados: (1 | -1)[] = eixo === 0 ? [1, -1] : [1];
+      return lados.map((sinal) => {
+        const pos: Vec3 = [...c];
+        pos[eixo] = sinal > 0 ? l.max[eixo] : l.min[eixo];
+        return { id: `m|${modSel.modulo.id}|${eixo}|${sinal}|${param}`, pos, eixo, sinal, rotulo: `${def?.label ?? param} ${fmt(Number(modSel.modulo.parametros[param]))}` };
+      });
+    });
+  })();
+
+  const puxarAlca = (id: string, delta: number, tol: number, semEncaixe: boolean) => {
+    const [tipo, alvo, eixoS, sinalS, campo] = id.split('|');
+    const eixo = Number(eixoS) as 0 | 1 | 2;
+    const sinal = Number(sinalS) as 1 | -1;
+    const mid = tipo === 'm' ? alvo : moduloDaPeca(alvo);
+    const mod = p?.modulos?.find((m) => m.id === mid);
+    const montadoMod = montados.find((m) => m.modulo.id === mid);
+    if (!mod || !montadoMod) return;
+    if (!inicioAlca.current || inicioAlca.current.id !== id) {
+      if (tipo === 'm') {
+        inicioAlca.current = { id, mod, valor: Number(mod.parametros[campo]), borda: sinal > 0 ? montadoMod.limites.max[eixo] : montadoMod.limites.min[eixo] };
+      } else {
+        const peca = pecas.find((q) => q.id === alvo);
+        if (!peca?.box3d) return;
+        inicioAlca.current = { id, mod, valor: peca[campo as 'comprimento' | 'largura'], borda: peca.box3d.pos[eixo] + (sinal * peca.box3d.size[eixo]) / 2 };
+      }
+    }
+    const ini = inicioAlca.current;
+    // a face anda; encaixa nas faces dos outros módulos
+    let borda = ini.borda + delta * sinal;
+    let encaixou = false;
+    if (!semEncaixe) {
+      let melhor = tol;
+      for (const o of montados) {
+        if (o.modulo.id === mid && tipo === 'm') continue;
+        for (const v of [o.limites.min[eixo], o.limites.max[eixo]]) {
+          if (Math.abs(v - borda) < melhor) {
+            melhor = Math.abs(v - borda);
+            borda = v;
+            encaixou = true;
+          }
+        }
+      }
+    }
+    let valor = ini.valor + (borda - ini.borda) * sinal;
+    if (!encaixou) valor = Math.round(valor / (semEncaixe ? 1 : 5)) * (semEncaixe ? 1 : 5);
+    if (tipo === 'm') {
+      const def = templatePorId(ini.mod.templateId).parametros.find((d) => d.id === campo);
+      if (def?.min !== undefined) valor = Math.max(def.min, valor);
+      if (def?.max !== undefined) valor = Math.min(def.max, valor);
+    } else valor = Math.max(30, valor);
+    valor = Math.round(valor * 10) / 10;
+    const cresceu = valor - ini.valor;
+    if (tipo === 'm') {
+      alterarModulo(mid!, () => {
+        const pos: Vec3 = [...ini.mod.posicao];
+        if (eixo === 0) pos[0] = ini.mod.posicao[0] + (cresceu * sinal) / 2;
+        return { ...ini.mod, parametros: { ...ini.mod.parametros, [campo]: valor }, posicao: pos };
+      });
+    } else {
+      const local = idLocal(alvo);
+      const base = ini.mod.pecasExtras?.find((q) => q.id === local);
+      if (!base?.livre3d) return;
+      const centro: Vec3 = [...base.livre3d.centro];
+      centro[eixo] += (cresceu * sinal) / 2;
+      alterarModulo(mid!, (m) => ({ ...m, pecasExtras: (m.pecasExtras ?? []).map((q) => (q.id === local ? { ...base, [campo]: valor, livre3d: { ...base.livre3d!, centro } } : q)) }));
+    }
+  };
+
   // ---------- teclado (estilo Figma) ----------
   const teclas = useRef<(e: KeyboardEvent) => void>(() => {});
   teclas.current = (e: KeyboardEvent) => {
@@ -359,6 +486,15 @@ export function Editor({ id }: { id: string }) {
     );
 
   const exportar = async (tipo: string) => {
+    if (tipo === 'manual') {
+      setAba('montagem');
+      setExportarManual(true);
+      return;
+    }
+    if (tipo === 'desenhos') {
+      setAba('desenhos');
+      return;
+    }
     setExportando(tipo);
     try {
       const { baixar, csvListaCorte, pdfOrcamento, pdfPlanoCorte } = await import('../export/exportar');
@@ -440,9 +576,15 @@ export function Editor({ id }: { id: string }) {
                 onAdicionar={(tid, lado) => adicionarModulo(tid, lado)}
                 onDuplicar={duplicarModulo}
                 onRemover={removerModulo}
-                onRestaurar={(mid) => alterarModulo(mid, (m) => ({ ...m, removidas: [], deslocamentos: {} }))}
+                onRestaurar={restaurarModulo}
                 catalogo={catalogo}
               />
+            )}
+
+            {!livre && montados.length > 1 && (
+              <div className="border-t border-linha pt-3">
+                <Interruptor label="Módulos encostados dividem a lateral" ligado={p.compartilharLaterais !== false} onChange={alternarCompartilhar} />
+              </div>
             )}
 
             <div className="grid grid-cols-2 gap-2 border-t border-linha pt-4">
@@ -477,7 +619,7 @@ export function Editor({ id }: { id: string }) {
         {/* ------------ 3D + abas ------------ */}
         <main className="flex min-w-0 flex-1 flex-col">
           {!livre && (
-            <div className="relative h-[50vh] min-h-[340px] border-b border-linha lg:h-[56vh]">
+            <div className="relative isolate h-[50vh] min-h-[340px] border-b border-linha lg:h-[56vh]">
               <Suspense fallback={<div className="grid h-full place-items-center text-tinta-3">Carregando 3D…</div>}>
                 <Cena
                   ref={cena}
@@ -490,6 +632,14 @@ export function Editor({ id }: { id: string }) {
                   onSelecionar={setSel}
                   onMoverModulo={(mid, pos) => alterarModulo(mid, (m) => ({ ...m, posicao: pos }))}
                   onMoverPeca={moverPeca}
+                  onFimArraste={reencaixar}
+                  alcas={alcas}
+                  onAlca={puxarAlca}
+                  onAlcaFim={() => {
+                    inicioAlca.current = null;
+                    reencaixar();
+                  }}
+                  marcadas={marcadas}
                   opcoes={opcoes}
                   vista={vista}
                   vistaSeq={vistaSeq}
@@ -515,6 +665,29 @@ export function Editor({ id }: { id: string }) {
                 {toggle('transparente', <Eye className="size-4" />, 'Ver dentro')}
                 {toggle('cotas', <Ruler className="size-4" />, 'Cotas')}
               </div>
+              {conflitos.length > 0 && (
+                <div className="absolute left-1/2 top-14 z-10 w-[min(420px,calc(100%-24px))] -translate-x-1/2">
+                  <button
+                    onClick={() => setVerConflitos((v) => !v)}
+                    aria-expanded={verConflitos}
+                    className="mx-auto flex items-center gap-1.5 rounded-md bg-[#fbeeeb] px-3 py-1.5 text-[12px] font-medium text-perigo shadow-[0_0_0_1px_rgba(179,65,47,.3)]"
+                  >
+                    <AlertTriangle className="size-4" />
+                    {conflitos.length === 1 ? '1 problema no projeto' : `${conflitos.length} problemas no projeto`}
+                  </button>
+                  {verConflitos && (
+                    <ul className="mt-1 max-h-48 overflow-auto rounded-md border border-linha bg-painel text-[12px] shadow-[0_6px_24px_rgba(34,40,43,.12)]">
+                      {conflitos.map((c, i) => (
+                        <li key={i}>
+                          <button className="block w-full px-3 py-1.5 text-left hover:bg-painel-2" onClick={() => setSel({ modulo: moduloDaPeca(c.a), peca: c.a })}>
+                            {c.texto}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
               <div className="absolute right-3 top-3 flex rounded-md border border-linha bg-painel/90 p-0.5">
                 {(['iso', 'frente', 'lado', 'topo'] as Vista[]).map((v) => (
                   <button
@@ -566,6 +739,7 @@ export function Editor({ id }: { id: string }) {
               onChange={setAba}
               abas={[
                 { id: 'pecas', label: `Peças (${pecas.filter((x) => !x.somente3d).reduce((s, x) => s + x.quantidade, 0)})` },
+                ...(livre ? [] : [{ id: 'desenhos' as const, label: 'Desenhos' }, { id: 'montagem' as const, label: 'Montagem' }]),
                 { id: 'corte', label: <>Plano de corte{calculando && <span className="ml-1.5 inline-block size-1.5 animate-pulse rounded-full bg-mdf align-middle" />}</> },
                 { id: 'custos', label: 'Custos' },
                 { id: 'exportar', label: 'Exportar' },
@@ -584,7 +758,7 @@ export function Editor({ id }: { id: string }) {
                           <Plus className="size-3.5" /> Tábua solta
                         </button>
                         {m.removidas > 0 && (
-                          <button className="text-[12px] text-tinta-3 hover:text-tinta" onClick={() => alterarModulo(m.modulo.id, (mm) => ({ ...mm, removidas: [] }))}>
+                          <button className="text-[12px] text-tinta-3 hover:text-tinta" onClick={() => restaurarModulo(m.modulo.id)}>
                             {m.removidas} removida(s) · restaurar
                           </button>
                         )}
@@ -601,6 +775,7 @@ export function Editor({ id }: { id: string }) {
                       onAdicionar={livre ? adicionarPecaLivre : undefined}
                       onRemover={removerPeca}
                       onDestravar={livre ? undefined : destravar}
+                      numeros={numeros}
                     />
                   </section>
                 ))}
@@ -624,6 +799,10 @@ export function Editor({ id }: { id: string }) {
                 )}
               </>
             )}
+            {aba === 'desenhos' && <DesenhosView pecas={pecas} numeros={numeros} catalogo={catalogo} projeto={p.nome} />}
+            {aba === 'montagem' && montado && (
+              <ManualView montado={montado} catalogo={catalogo} numeros={numeros} projeto={p.nome} exportarAoAbrir={exportarManual} onExportado={() => setExportarManual(false)} />
+            )}
             {aba === 'corte' && <PlanoCorteView plano={plano} pecas={pecas} fitas={catalogo.fitas} calculando={calculando} />}
             {aba === 'custos' && <CustosView custos={custos} venda={config.venda} />}
             {aba === 'exportar' && (
@@ -631,10 +810,12 @@ export function Editor({ id }: { id: string }) {
                 {[
                   { id: 'corte', icone: <FileDown className="size-5" />, titulo: 'Plano de corte (PDF)', texto: 'Uma chapa por página, com legenda e fitas. Para mandar à marcenaria.' },
                   { id: 'orcamento', icone: <FileDown className="size-5" />, titulo: 'Ficha e orçamento (PDF)', texto: 'Imagem 3D, medidas, lista de peças, custos e preço sugerido.' },
+                  { id: 'desenhos', icone: <FileDown className="size-5" />, titulo: 'Desenhos com furação (PDF)', texto: 'Cada peça com medidas, fita e a posição de cada furo.' },
+                  { id: 'manual', icone: <FileDown className="size-5" />, titulo: 'Manual de montagem (PDF)', texto: 'Passo a passo com imagem 3D de cada etapa.' },
                   { id: 'csv', icone: <FileSpreadsheet className="size-5" />, titulo: 'Lista de corte (CSV)', texto: 'Abre no Excel ou em outro programa de corte.' },
                   { id: 'png', icone: <Image className="size-5" />, titulo: 'Imagem do 3D (PNG)', texto: 'Para anúncio ou para mostrar ao cliente.' },
                 ]
-                  .filter((x) => !(livre && x.id === 'png'))
+                  .filter((x) => !(livre && ['png', 'desenhos', 'manual'].includes(x.id)))
                   .map((x) => (
                     <button key={x.id} onClick={() => exportar(x.id)} disabled={!!exportando} className="rounded-lg border border-linha p-4 text-left hover:border-aco hover:bg-aco-claro/40 disabled:opacity-50">
                       <div className="mb-2 text-aco">{x.icone}</div>

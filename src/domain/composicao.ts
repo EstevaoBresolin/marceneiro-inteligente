@@ -15,6 +15,8 @@ export type ModuloMontado = {
   erros: string[];
   /** quantas peças do modelo o usuário tirou */
   removidas: number;
+  /** caixa só do corpo (sem portas, frentes e espelhos), no projeto */
+  corpo: Limites;
 };
 
 export type ProjetoMontado = {
@@ -121,7 +123,8 @@ export function montarProjeto(p: Projeto, ctx: Contexto): ProjetoMontado {
     });
 
     const local = limitesDe(locais.flatMap((x) => (x.box3d ? [x.box3d] : []))) ?? VAZIO;
-    montados.push({ modulo: m, template: t, limitesLocais: local, limites: somar(local, m.posicao), erros: errosMod, removidas: removidas.size });
+    const corpoLocal = limitesDe(locais.filter((x) => x.papel !== 'porta' && x.papel !== 'espelho').flatMap((x) => (x.box3d ? [x.box3d] : []))) ?? local;
+    montados.push({ modulo: m, template: t, limitesLocais: local, limites: somar(local, m.posicao), corpo: somar(corpoLocal, m.posicao), erros: errosMod, removidas: removidas.size });
     for (const x of locais)
       pecas.push({
         ...x,
@@ -130,7 +133,7 @@ export function montarProjeto(p: Projeto, ctx: Contexto): ProjetoMontado {
         box3d: x.box3d ? transladar(x.box3d, m.posicao) : undefined,
         dependeDe: x.dependeDe ? `${m.id}${SEP}${x.dependeDe}` : undefined,
       });
-    ferragens.push(...r.ferragens.filter((f) => !f.pecaId || !removidas.has(f.pecaId)));
+    ferragens.push(...r.ferragens.filter((f) => !f.pecaId || !removidas.has(f.pecaId)).map((f) => ({ ...f, pecaId: f.pecaId ? `${m.id}${SEP}${f.pecaId}` : undefined, moduloId: m.id })));
     extras.push(...r.extras.filter((e) => !e.pecaId || !removidas.has(e.pecaId)).map((e) => (varios ? { ...e, descricao: `${m.nome}: ${e.descricao}` } : e)));
   }
 
@@ -246,3 +249,148 @@ export function encaixar(local: Limites, pos: Vec3, outros: Limites[], tol = 40,
 }
 
 export const templatesDeModulo = () => TEMPLATES.filter((t) => t.id !== 'livre');
+
+// ---------------------------------------------------------------------------
+// Peças batendo
+// ---------------------------------------------------------------------------
+export type Conflito = { tipo: 'sobreposicao' | 'porta'; a: string; b: string; texto: string };
+
+const limitesBox = (p: Peca): Limites => {
+  const b = p.box3d!;
+  return { min: [b.pos[0] - b.size[0] / 2, b.pos[1] - b.size[1] / 2, b.pos[2] - b.size[2] / 2], max: [b.pos[0] + b.size[0] / 2, b.pos[1] + b.size[1] / 2, b.pos[2] + b.size[2] / 2] };
+};
+const sobrepoe = (a: Limites, b: Limites, tol = 0.5) => [0, 1, 2].every((i) => Math.min(a.max[i], b.max[i]) - Math.max(a.min[i], b.min[i]) > tol);
+const nomeCurtoPeca = (p: Peca) => p.nome;
+
+/**
+ * Peças que ocupam o mesmo espaço (mais de 0,5 mm em todas as direções) e portas
+ * que não abrem porque o vizinho avança na frente da dobradiça.
+ */
+export function detectarConflitos(pecas: Peca[]): Conflito[] {
+  const comCaixa = pecas.filter((p) => p.box3d);
+  const lim = new Map(comCaixa.map((p) => [p.id, limitesBox(p)]));
+  const out: Conflito[] = [];
+  for (let i = 0; i < comCaixa.length; i++)
+    for (let j = i + 1; j < comCaixa.length; j++) {
+      const a = comCaixa[i];
+      const b = comCaixa[j];
+      if (a.dependeDe === b.id || b.dependeDe === a.id) continue;
+      if (sobrepoe(lim.get(a.id)!, lim.get(b.id)!)) out.push({ tipo: 'sobreposicao', a: a.id, b: b.id, texto: `${nomeCurtoPeca(a)} bate em ${nomeCurtoPeca(b)}` });
+    }
+
+  // portas: ao girar, a borda da dobradiça avança; um vizinho de outro módulo na frente desse ponto impede a abertura
+  for (const porta of comCaixa) {
+    const d = porta.box3d!.dobradica;
+    if (!d) continue;
+    const lp = lim.get(porta.id)!;
+    const esp = Math.min(...porta.box3d!.size);
+    const mid = moduloDaPeca(porta.id);
+    for (const o of comCaixa) {
+      if (o.id === porta.id || moduloDaPeca(o.id) === mid || o.dependeDe === porta.id) continue;
+      const lo = lim.get(o.id)!;
+      const ladoX = d.sinal < 0 ? lo.max[0] > d.x - esp - 3 && lo.min[0] < d.x + 0.5 : lo.min[0] < d.x + esp + 3 && lo.max[0] > d.x - 0.5;
+      const naFrente = lo.max[2] > d.z + 1;
+      const mesmaAltura = Math.min(lo.max[1], lp.max[1]) - Math.max(lo.min[1], lp.min[1]) > 5;
+      if (ladoX && naFrente && mesmaAltura && !out.some((c) => c.tipo === 'porta' && c.a === porta.id)) {
+        out.push({ tipo: 'porta', a: porta.id, b: o.id, texto: `${nomeCurtoPeca(porta)} não abre: bate em ${nomeCurtoPeca(o)}` });
+      }
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Lateral compartilhada automática
+// ---------------------------------------------------------------------------
+const dentro = (a0: number, a1: number, b0: number, b1: number) => a0 >= b0 - 1 && a1 <= b1 + 1;
+
+/**
+ * Quando dois módulos encostam lado a lado, um deles tira a lateral daquele lado e
+ * desliza para usar a lateral do vizinho. Quem cede é o módulo que cabe inteiro na
+ * altura do outro (preferindo `preferido`, normalmente o que acabou de ser movido).
+ * Se os módulos se separarem, a lateral volta.
+ */
+export function compartilharLaterais(p: Projeto, ctx: Contexto, preferido?: string): Projeto {
+  if (p.templateId === 'livre' || p.compartilharLaterais === false) return p;
+  let x = normalizarProjeto(p);
+  for (let iter = 0; iter < 8; iter++) {
+    const m = montarProjeto(x, ctx);
+    const ids = new Set(m.pecas.map((q) => q.id));
+    const viz = (mm: ModuloMontado, lado: 'esq' | 'dir') =>
+      m.modulos.find(
+        (o) =>
+          o.modulo.id !== mm.modulo.id &&
+          Math.abs(lado === 'esq' ? o.corpo.max[0] - mm.corpo.min[0] : o.corpo.min[0] - mm.corpo.max[0]) < 1 &&
+          Math.min(o.corpo.max[1], mm.corpo.max[1]) - Math.max(o.corpo.min[1], mm.corpo.min[1]) > 20 &&
+          Math.min(o.corpo.max[2], mm.corpo.max[2]) - Math.max(o.corpo.min[2], mm.corpo.min[2]) > 20,
+      );
+
+    // 1) separou: devolve a lateral e desfaz o deslize
+    let mudou = false;
+    for (const mm of m.modulos) {
+      for (const c of mm.modulo.compartilhadas ?? []) {
+        if (viz(mm, c.peca === 'lateral-esq' ? 'esq' : 'dir')) continue;
+        x = {
+          ...x,
+          modulos: x.modulos!.map((q) =>
+            q.id === mm.modulo.id
+              ? { ...q, removidas: (q.removidas ?? []).filter((r) => r !== c.peca), compartilhadas: (q.compartilhadas ?? []).filter((k) => k.peca !== c.peca), posicao: [q.posicao[0] - c.dx, q.posicao[1], q.posicao[2]] as Vec3 }
+              : q,
+          ),
+        };
+        mudou = true;
+        break;
+      }
+      if (mudou) break;
+    }
+    if (mudou) continue;
+
+    // 2) encostou: um dos dois cede a lateral
+    for (const a of m.modulos) {
+      const b = viz(a, 'dir');
+      if (!b) continue;
+      const aLat = `${a.modulo.id}${SEP}lateral-dir`;
+      const bLat = `${b.modulo.id}${SEP}lateral-esq`;
+      if (!ids.has(aLat) || !ids.has(bLat)) continue;
+      const bCabe = dentro(b.corpo.min[1], b.corpo.max[1], a.corpo.min[1], a.corpo.max[1]);
+      const aCabe = dentro(a.corpo.min[1], a.corpo.max[1], b.corpo.min[1], b.corpo.max[1]);
+      if (!aCabe && !bCabe) continue;
+      const cede = aCabe && bCabe ? (preferido === a.modulo.id ? a : b) : bCabe ? b : a;
+      const lat = m.pecas.find((q) => q.id === (cede === a ? aLat : bLat))!;
+      const e = Math.min(...lat.box3d!.size);
+      const peca = cede === a ? ('lateral-dir' as const) : ('lateral-esq' as const);
+      const dx = cede === a ? e : -e;
+      x = {
+        ...x,
+        modulos: x.modulos!.map((q) =>
+          q.id === cede.modulo.id
+            ? { ...q, removidas: [...new Set([...(q.removidas ?? []), peca])], compartilhadas: [...(q.compartilhadas ?? []), { peca, dx }], posicao: [q.posicao[0] + dx, q.posicao[1], q.posicao[2]] as Vec3 }
+            : q,
+        ),
+      };
+      mudou = true;
+      break;
+    }
+    if (!mudou) break;
+  }
+  return x;
+}
+
+// ---------------------------------------------------------------------------
+// Alças: que parâmetro cada eixo do módulo controla
+// ---------------------------------------------------------------------------
+export function eixosDoModulo(t: Template, p: Params): { eixo: 0 | 1 | 2; param: string }[] {
+  const tem = (id: string) => t.parametros.some((d) => d.id === id);
+  if (tem('orientacao')) {
+    const o = String(p.orientacao ?? 'horizontal');
+    if (o === 'lateral') return [{ eixo: 1, param: 'comprimento' }, { eixo: 2, param: 'largura' }];
+    if (o === 'frontal') return [{ eixo: 0, param: 'largura' }, { eixo: 1, param: 'comprimento' }];
+    return [{ eixo: 0, param: 'comprimento' }, { eixo: 2, param: 'largura' }];
+  }
+  const out: { eixo: 0 | 1 | 2; param: string }[] = [];
+  if (tem('largura')) out.push({ eixo: 0, param: 'largura' });
+  else if (tem('comprimento')) out.push({ eixo: 0, param: 'comprimento' });
+  if (tem('altura')) out.push({ eixo: 1, param: 'altura' });
+  if (tem('profundidade')) out.push({ eixo: 2, param: 'profundidade' });
+  return out;
+}

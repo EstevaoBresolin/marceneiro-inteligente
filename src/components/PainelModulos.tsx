@@ -174,7 +174,7 @@ export function PainelModulos({ montados, selecionado, onSelecionar, onAlterar, 
                     <Campo key={eixo} label={eixo} unidade="mm">
                       <NumeroInput
                         ariaLabel={`Posição ${eixo}`}
-                        valor={Math.round(atual.modulo.posicao[i])}
+                        valor={Math.round(atual.modulo.posicao[i] * 10) / 10}
                         passo={10}
                         onChange={(v) =>
                           onAlterar(atual.modulo.id, (m) => {

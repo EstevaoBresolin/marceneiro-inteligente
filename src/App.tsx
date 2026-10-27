@@ -36,7 +36,7 @@ export default function App() {
 
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-20 flex h-[52px] items-center gap-6 border-b border-linha bg-painel px-4">
+      <header className="sticky top-0 z-50 flex h-[52px] items-center gap-6 border-b border-linha bg-painel px-4">
         <a href="#/projetos" className="flex shrink-0 items-center gap-2">
           <Marca />
           <span className="font-cond text-[17px] font-semibold tracking-tight">Marceneiro Inteligente</span>

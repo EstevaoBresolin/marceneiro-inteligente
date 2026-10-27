@@ -273,3 +273,198 @@ export function csvListaCorte(projeto: string, pecas: Peca[], chapas: Chapa[], f
   const csv = '﻿' + linhas.map((l) => l.map(esc).join(';')).join('\r\n');
   baixar(csv, `lista-de-corte-${slug(projeto)}.csv`, 'text/csv;charset=utf-8');
 }
+
+// ---------------------------------------------------------------------------
+// Desenhos das peças com furação (A4 retrato, 2 por página)
+// ---------------------------------------------------------------------------
+export type ItemDesenho = { peca: Peca; numero: string; quantidade: number; furos: import('../domain/usinagem').Furo[] };
+
+export async function pdfDesenhos(opts: { projeto: string; itens: ItemDesenho[]; chapas: Chapa[]; fitas: FitaBorda[] }) {
+  const { geometriaDesenho } = await import('../cutplan/desenho');
+  const doc = await PDFDocument.create();
+  const fonte = await doc.embedFont(StandardFonts.Helvetica);
+  const negrito = await doc.embedFont(StandardFonts.HelveticaBold);
+  const [PW, PH] = [595.28, 841.89];
+  const m = 36;
+  const alturaBloco = (PH - 2 * m - 30) / 2;
+
+  for (let i = 0; i < opts.itens.length; i++) {
+    const slot = i % 2;
+    const page = slot === 0 ? doc.addPage([PW, PH]) : doc.getPages()[doc.getPageCount() - 1];
+    if (slot === 0) {
+      texto(page, opts.projeto, m, PH - m - 8, 13, negrito);
+      texto(page, `Desenhos das peças · ${hoje()} · medidas em mm`, m, PH - m - 22, 9, fonte, CINZA);
+    }
+    const it = opts.itens[i];
+    const g = geometriaDesenho(it.peca, it.furos);
+    const chapa = opts.chapas.find((c) => c.id === it.peca.chapaId);
+    const topo = PH - m - 34 - slot * alturaBloco;
+
+    // cabeçalho do bloco
+    page.drawRectangle({ x: m, y: topo - 16, width: negrito.widthOfTextAtSize(it.numero, 10) + 8, height: 15, color: TINTA });
+    texto(page, it.numero, m + 4, topo - 12, 10, negrito, rgb(1, 1, 1));
+    texto(page, `${it.peca.nome}${it.quantidade > 1 ? `  ×${it.quantidade}` : ''}`, m + negrito.widthOfTextAtSize(it.numero, 10) + 14, topo - 12, 11, negrito);
+    const dims = `${g.C} × ${g.W} × ${chapa?.espessura ?? '?'} mm · ${chapa?.nome ?? ''}`;
+    texto(page, dims, PW - m - fonte.widthOfTextAtSize(t(dims), 9), topo - 12, 9, fonte, CINZA);
+
+    // desenho
+    const linhasTabela = g.tabela.length;
+    const areaH = alturaBloco - 70 - linhasTabela * 12;
+    const areaW = PW - 2 * m - 60;
+    const esc = Math.min(areaW / g.C, Math.max(40, areaH) / g.W);
+    const ox = m + 40 + (areaW - g.C * esc) / 2;
+    const oy = topo - 30 - g.W * esc; // canto de baixo (C1)
+    const X = (x: number) => ox + x * esc;
+    const Y = (y: number) => oy + y * esc;
+    page.drawRectangle({ x: X(0), y: Y(0), width: g.C * esc, height: g.W * esc, color: hex('#fbf7f0'), borderColor: hex('#5b4a39'), borderWidth: 0.8 });
+    for (const b of g.fitas) {
+      const esq = (b === 'l1') !== g.espelhado;
+      const o = 2.2;
+      const [s, e] =
+        b === 'c1' ? [{ x: X(0), y: Y(0) - o }, { x: X(g.C), y: Y(0) - o }] : b === 'c2' ? [{ x: X(0), y: Y(g.W) + o }, { x: X(g.C), y: Y(g.W) + o }] : esq ? [{ x: X(0) - o, y: Y(0) }, { x: X(0) - o, y: Y(g.W) }] : [{ x: X(g.C) + o, y: Y(0) }, { x: X(g.C) + o, y: Y(g.W) }];
+      page.drawLine({ start: s, end: e, thickness: 2.5, color: MDF });
+    }
+    for (const b of ['c1', 'c2', 'l1', 'l2'] as const) {
+      const esq = (b === 'l1') !== g.espelhado;
+      const pos = b === 'c1' ? { x: X(g.C / 2), y: Y(0) - 11 } : b === 'c2' ? { x: X(g.C / 2), y: Y(g.W) + 9 } : { x: esq ? X(0) - 12 : X(g.C) + 12, y: Y(g.W / 2) };
+      centrado(page, b.toUpperCase(), pos.x, pos.y, 7, negrito, g.fitas.includes(b) ? hex('#7e5a36') : CLARO);
+    }
+    for (const tp of g.topos) page.drawRectangle({ x: X(tp.x), y: Y(tp.y), width: Math.max(1.5, tp.w * esc), height: Math.max(1.5, tp.h * esc), borderColor: hex(tp.cor), borderWidth: 0.6, borderDashArray: [2, 1.5] });
+    for (const f of g.furos) {
+      page.drawCircle({ x: X(f.x), y: Y(f.y), size: Math.max(1.6, f.r * esc), borderColor: hex(f.cor), borderWidth: 0.8, color: f.faceVisivel ? rgb(1, 1, 1) : undefined, borderDashArray: f.faceVisivel ? undefined : [1.6, 1.2] });
+      page.drawCircle({ x: X(f.x), y: Y(f.y), size: 0.5, color: hex(f.cor) });
+    }
+    // cotas gerais
+    page.drawLine({ start: { x: X(0), y: Y(0) - 22 }, end: { x: X(g.C), y: Y(0) - 22 }, thickness: 0.5, color: CINZA });
+    centrado(page, String(g.C), X(g.C / 2), Y(0) - 30, 8, negrito);
+    page.drawLine({ start: { x: X(0) - 26, y: Y(0) }, end: { x: X(0) - 26, y: Y(g.W) }, thickness: 0.5, color: CINZA });
+    texto(page, String(g.W), X(0) - 38 - negrito.widthOfTextAtSize(String(g.W), 8) / 2, Y(g.W / 2) - 3, 8, negrito);
+
+    // notas + tabela de furos
+    let ty = Y(0) - 46;
+    const nota = `${g.fitas.length ? `Fita em ${g.fitas.map((b) => b.toUpperCase()).join(', ')}` : 'Sem fita'}${g.espelhado ? ' · vista pela face de trás' : ''} · tracejado = furo na outra face`;
+    texto(page, nota, m, ty, 7.5, fonte, CLARO);
+    ty -= 13;
+    for (const l of g.tabela) {
+      page.drawCircle({ x: m + 3, y: ty + 2.5, size: 2.5, color: hex(l.cor) });
+      texto(page, `${l.qtd}× ${l.tipo}`, m + 10, ty, 8, negrito);
+      texto(page, l.onde, m + 150, ty, 8, fonte, CINZA);
+      texto(page, l.medida, m + 230, ty, 8, fonte, CINZA);
+      texto(page, l.pos.slice(0, 70), m + 320, ty, 8, fonte, CLARO);
+      ty -= 12;
+    }
+    if (!g.tabela.length) texto(page, 'Sem furação.', m, ty, 8, fonte, CLARO);
+    if (slot === 0) page.drawLine({ start: { x: m, y: topo - alturaBloco + 6 }, end: { x: PW - m, y: topo - alturaBloco + 6 }, thickness: 0.4, color: hex('#d3d9d6') });
+  }
+  if (!opts.itens.length) doc.addPage([PW, PH]);
+  baixar(await doc.save(), `desenhos-${slug(opts.projeto)}.pdf`, 'application/pdf');
+}
+
+// ---------------------------------------------------------------------------
+// Manual de montagem (A4 retrato, 2 passos por página)
+// ---------------------------------------------------------------------------
+export async function pdfManual(opts: { projeto: string; passos: import('../domain/manual').Passo[]; imagens: (string | null)[]; listaPecas: { numero: string; nome: string; medida: string }[] }) {
+  const doc = await PDFDocument.create();
+  const fonte = await doc.embedFont(StandardFonts.Helvetica);
+  const negrito = await doc.embedFont(StandardFonts.HelveticaBold);
+  const [PW, PH] = [595.28, 841.89];
+  const m = 40;
+
+  // capa: lista de peças
+  let page = doc.addPage([PW, PH]);
+  texto(page, opts.projeto, m, PH - m - 14, 20, negrito);
+  texto(page, `Manual de montagem · ${opts.passos.length} passos · ${hoje()}`, m, PH - m - 34, 10, fonte, CINZA);
+  if (opts.imagens.length && opts.imagens[opts.imagens.length - 1]) {
+    try {
+      const img = await doc.embedPng(opts.imagens[opts.imagens.length - 1]!);
+      const w = PW - 2 * m;
+      const h = Math.min(300, (img.height * w) / img.width);
+      const k = Math.min(w / img.width, h / img.height);
+      page.drawImage(img, { x: m + (w - img.width * k) / 2, y: PH - m - 50 - img.height * k, width: img.width * k, height: img.height * k });
+    } catch {
+      /* sem imagem */
+    }
+  }
+  let y = PH - m - 370;
+  texto(page, 'Peças', m, y, 12, negrito);
+  y -= 16;
+  for (const p of opts.listaPecas) {
+    if (y < m + 10) {
+      page = doc.addPage([PW, PH]);
+      y = PH - m;
+    }
+    texto(page, p.numero, m, y, 9, negrito);
+    texto(page, p.nome, m + 34, y, 9, fonte);
+    texto(page, p.medida, m + 300, y, 9, fonte, CINZA);
+    y -= 13;
+  }
+
+  const blocoH = (PH - 2 * m) / 2;
+  for (let i = 0; i < opts.passos.length; i++) {
+    const slot = i % 2;
+    if (slot === 0) page = doc.addPage([PW, PH]);
+    const ps = opts.passos[i];
+    const topo = PH - m - slot * blocoH;
+    page.drawCircle({ x: m + 11, y: topo - 10, size: 11, color: hex('#b5641f') });
+    centrado(page, String(i + 1), m + 11, topo - 10, 11, negrito, rgb(1, 1, 1));
+    texto(page, ps.titulo, m + 30, topo - 14, 13, negrito);
+    // imagem na largura toda, texto embaixo
+    const imgW = PW - 2 * m;
+    const imgH = blocoH - 150;
+    let usado = 0;
+    const src = opts.imagens[i];
+    if (src) {
+      try {
+        const img = await doc.embedPng(src);
+        const k = Math.min(imgW / img.width, imgH / img.height);
+        usado = img.height * k;
+        page.drawImage(img, { x: m + (imgW - img.width * k) / 2, y: topo - 30 - usado, width: img.width * k, height: usado });
+      } catch {
+        /* sem imagem */
+      }
+    }
+    const tx = m;
+    const larg = PW - 2 * m;
+    let ty = topo - 46 - usado;
+    const quebrar = (s: string, size: number, f: PDFFont) => {
+      const linhas: string[] = [];
+      let atual = '';
+      for (const w of t(s).split(' ')) {
+        const tenta = atual ? `${atual} ${w}` : w;
+        if (f.widthOfTextAtSize(tenta, size) > larg) {
+          linhas.push(atual);
+          atual = w;
+        } else atual = tenta;
+      }
+      if (atual) linhas.push(atual);
+      return linhas;
+    };
+    for (const l of quebrar(ps.texto, 9.5, fonte)) {
+      texto(page, l, tx, ty, 9.5, fonte);
+      ty -= 13;
+    }
+    ty -= 6;
+    const yLista = ty;
+    if (ps.pecas.length) {
+      texto(page, 'Peças', tx, ty, 9, negrito, CINZA);
+      ty -= 12;
+      for (const p of ps.pecas.slice(0, 8)) {
+        texto(page, `${p.numero}  ${p.nome}  (${p.medida})`.slice(0, 52), tx, ty, 8.5, fonte);
+        ty -= 11;
+      }
+      if (ps.pecas.length > 8) texto(page, `+ ${ps.pecas.length - 8} peças`, tx, ty, 8.5, fonte, CLARO);
+    }
+    if (ps.ferragens.length) {
+      let fy = yLista;
+      const fx = m + larg / 2 + 10;
+      texto(page, 'Ferragens', fx, fy, 9, negrito, CINZA);
+      fy -= 12;
+      for (const f of ps.ferragens.slice(0, 8)) {
+        texto(page, `${f.qtd}× ${f.nome}`.slice(0, 48), fx, fy, 8.5, fonte);
+        fy -= 11;
+      }
+    }
+    if (slot === 0) page.drawLine({ start: { x: m, y: topo - blocoH + 4 }, end: { x: PW - m, y: topo - blocoH + 4 }, thickness: 0.4, color: hex('#d3d9d6') });
+  }
+  baixar(await doc.save(), `manual-${slug(opts.projeto)}.pdf`, 'application/pdf');
+}

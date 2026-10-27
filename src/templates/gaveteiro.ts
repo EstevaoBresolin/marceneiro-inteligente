@@ -77,7 +77,7 @@ export const gaveteiro: Template = {
       if (bool(p, 'puxador')) ferragens.push({ ferragemId: 'puxador', quantidade: 1, pecaId: frente.id });
 
       // caixa da gaveta: laterais por fora, frente interna e traseira entre elas, fundo pregado por baixo
-      const yc = yF + 15;
+      const yc = yF + 20; // folga para o fundo da gaveta não raspar na base
       const zc0 = P - corr;
       const xg0 = -Wg / 2;
       const xg1 = Wg / 2;

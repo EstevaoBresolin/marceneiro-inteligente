@@ -40,9 +40,10 @@ type Props = {
   onAdicionar?: () => void;
   onRemover?: (id: string) => void;
   onDestravar?: (id: string) => void;
+  numeros?: Map<string, string>;
 };
 
-export function TabelaPecas({ pecas, chapas, fitas, lote = 1, selecionada, onSelecionar, onAlterar, onAdicionar, onRemover, onDestravar }: Props) {
+export function TabelaPecas({ pecas, chapas, fitas, lote = 1, selecionada, onSelecionar, onAlterar, onAdicionar, onRemover, onDestravar, numeros }: Props) {
   const linhas = pecas.filter((p) => !p.somente3d);
   const fitaPadrao = fitas[0]?.id ?? null;
 
@@ -73,7 +74,10 @@ export function TabelaPecas({ pecas, chapas, fitas, lote = 1, selecionada, onSel
                 className={cx('border-b border-linha last:border-0', ativa ? 'bg-aco-claro' : 'hover:bg-painel-2')}
               >
                 <td className="px-3 py-1.5">
+                  <div className="flex items-center gap-1.5">
+                  {numeros?.get(p.id) && <span className="w-7 shrink-0 font-cond text-[12px] font-bold text-tinta-3">{numeros.get(p.id)}</span>}
                   <TextoInput ariaLabel="Nome da peça" className="h-8" valor={p.nome} onChange={(v) => onAlterar({ ...p, nome: v, editadaManualmente: true })} />
+                  </div>
                 </td>
                 <td className="px-2 py-1.5 min-w-40">
                   <Selecao

@@ -121,7 +121,7 @@ export type Box3d = {
 };
 
 /** pecaId (opcional): se a peça for removida, o item sai junto (ex.: dobradiças da porta) */
-export type ItemFerragem = { ferragemId: string; quantidade: number; pecaId?: string };
+export type ItemFerragem = { ferragemId: string; quantidade: number; pecaId?: string; moduloId?: string };
 export type Extra = { descricao: string; custoCentavos: number; detalhe?: string; pecaId?: string };
 
 /** Um móvel paramétrico dentro do projeto, posicionado no espaço (mm) */
@@ -134,6 +134,8 @@ export type Modulo = {
   posicao: [number, number, number];
   /** ids (locais) das peças que o usuário tirou */
   removidas?: string[];
+  /** laterais tiradas automaticamente para usar a do vizinho, e quanto o módulo andou por isso */
+  compartilhadas?: { peca: 'lateral-esq' | 'lateral-dir'; dx: number }[];
   /** peças movidas à mão: deslocamento em mm a partir de onde o template as coloca */
   deslocamentos?: Record<string, [number, number, number]>;
   /** peças soltas que o usuário adicionou neste módulo */
@@ -147,6 +149,8 @@ export type Projeto = {
   templateId: string;
   parametros: Record<string, number | boolean | string>;
   modulos?: Modulo[];
+  /** módulos encostados dividem a lateral (padrão: sim) */
+  compartilharLaterais?: boolean;
   pecas: Peca[];
   ferragens: ItemFerragem[];
   extras: Extra[];

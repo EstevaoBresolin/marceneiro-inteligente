@@ -23,6 +23,9 @@ export type CenaHandle = { capturarPng: () => string | null };
 
 export type ModuloCena = { id: string; nome: string; limitesLocais: Limites; posicao: Vec3 };
 
+/** alça de redimensionar: fica no centro de uma face; arrastar ao longo do eixo */
+export type AlcaCena = { id: string; pos: Vec3; eixo: 0 | 1 | 2; sinal: 1 | -1; rotulo: string };
+
 type Props = {
   pecas: Peca[];
   chapas: Chapa[];
@@ -36,6 +39,16 @@ type Props = {
   opcoes: OpcoesCena;
   vista: Vista;
   vistaSeq: number;
+  onFimArraste?: () => void;
+  alcas?: AlcaCena[];
+  /** delta em mm ao longo do eixo desde o início do arraste; tol = encaixe em mm */
+  onAlca?: (id: string, delta: number, tol: number, semEncaixe: boolean) => void;
+  onAlcaFim?: () => void;
+  /** contornos especiais: conflito (vermelho) ou passo do manual (laranja) */
+  marcadas?: Record<string, 'conflito' | 'passo'>;
+  rotulos?: Record<string, string>;
+  /** só visualização (manual): sem seleção nem arraste */
+  somenteVer?: boolean;
 };
 
 const S = 0.001; // mm → m
@@ -43,7 +56,7 @@ const LIM_VAZIO: Limites = { min: [-250, 0, 0], max: [250, 500, 300] };
 const AZUL = '#2f5d7c';
 const AZUL_HOVER = '#6f9cbc';
 
-type Destaque = 'nenhum' | 'hover' | 'modulo' | 'peca';
+type Destaque = 'nenhum' | 'hover' | 'modulo' | 'peca' | 'conflito' | 'passo';
 
 type PecaMeshProps = {
   peca: Peca;
@@ -84,7 +97,7 @@ function PecaMesh({ peca, cor, opcoes, centro, destaque, onPointerDown, onDouble
   });
 
   const transparente = opcoes.transparente && (peca.papel === 'porta' || espelho || peca.papel === 'lateral');
-  const corBorda = destaque === 'peca' || destaque === 'modulo' ? AZUL : destaque === 'hover' ? AZUL_HOVER : espelho ? '#8aa5b3' : '#7e6a55';
+  const corBorda = destaque === 'conflito' ? '#c0392b' : destaque === 'passo' ? '#b5641f' : destaque === 'peca' || destaque === 'modulo' ? AZUL : destaque === 'hover' ? AZUL_HOVER : espelho ? '#8aa5b3' : '#7e6a55';
 
   return (
     <group ref={grupo} position={pivo}>
@@ -104,7 +117,7 @@ function PecaMesh({ peca, cor, opcoes, centro, destaque, onPointerDown, onDouble
         {espelho ? (
           <meshStandardMaterial color={destaque === 'peca' ? '#b9d4e6' : '#dbe7ec'} metalness={0.65} roughness={0.12} envMapIntensity={1.4} transparent={transparente} opacity={transparente ? 0.25 : 1} />
         ) : (
-          <meshStandardMaterial color={destaque === 'peca' ? '#9cc3dc' : cor} roughness={0.75} transparent={transparente} opacity={transparente ? 0.22 : 1} depthWrite={!transparente} />
+          <meshStandardMaterial color={destaque === 'peca' ? '#9cc3dc' : destaque === 'passo' ? '#f3c98f' : destaque === 'conflito' ? '#f2b8ae' : cor} roughness={0.75} transparent={transparente} opacity={transparente ? 0.22 : 1} depthWrite={!transparente} />
         )}
         <Edges threshold={15} color={corBorda} lineWidth={destaque === 'nenhum' ? 1 : 2} />
       </mesh>
@@ -146,6 +159,61 @@ function Camera({ vista, seq, lim, controles }: { vista: Vista; seq: number; lim
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vista, seq]);
   return null;
+}
+
+function Alca({ alca, onAlca, onFim, controles }: { alca: AlcaCena; onAlca?: Props['onAlca']; onFim?: () => void; controles: React.RefObject<OrbitControlsImpl | null> }) {
+  const { camera, gl } = useThree();
+  const [ativa, setAtiva] = useState(false);
+  const tela = (v: Vec3) => {
+    const p = new THREE.Vector3(v[0] * S, v[1] * S, v[2] * S).project(camera);
+    return new THREE.Vector2(((p.x + 1) / 2) * gl.domElement.clientWidth, ((1 - p.y) / 2) * gl.domElement.clientHeight);
+  };
+  const iniciar = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    // quantos pixels a tela anda para 100 mm ao longo do eixo
+    const ponta: Vec3 = [...alca.pos];
+    ponta[alca.eixo] += 100 * alca.sinal;
+    const v = tela(ponta).sub(tela(alca.pos));
+    const len2 = v.lengthSq();
+    if (len2 < 4) return; // eixo apontando para a câmera: sem como puxar
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const mmPorPx = 100 / Math.sqrt(len2);
+    if (controles.current) controles.current.enabled = false;
+    setAtiva(true);
+    document.body.style.cursor = 'grabbing';
+    const mover = (ev: PointerEvent) => {
+      const d = new THREE.Vector2(ev.clientX - x0, ev.clientY - y0);
+      const mm = (d.dot(v) / len2) * 100; // positivo = para fora da face
+      onAlca?.(alca.id, mm, 10 * mmPorPx, ev.altKey);
+    };
+    const soltar = () => {
+      window.removeEventListener('pointermove', mover);
+      if (controles.current) controles.current.enabled = true;
+      setAtiva(false);
+      document.body.style.cursor = '';
+      onFim?.();
+    };
+    window.addEventListener('pointermove', mover);
+    window.addEventListener('pointerup', soltar, { once: true });
+  };
+  const cursor = alca.eixo === 1 ? 'ns-resize' : 'ew-resize';
+  return (
+    <Html position={[alca.pos[0] * S, alca.pos[1] * S, alca.pos[2] * S]} center zIndexRange={[30, 0]}>
+      <div className="relative">
+        <button
+          aria-label={`Puxar ${alca.rotulo}`}
+          onPointerDown={iniciar}
+          className="block size-3.5 rounded-full border-2 border-white bg-[#2f5d7c] shadow-[0_0_0_1px_#2f5d7c] transition-transform hover:scale-125"
+          style={{ cursor, touchAction: 'none' }}
+        />
+        {ativa && (
+          <span className="pointer-events-none absolute left-1/2 top-5 -translate-x-1/2 whitespace-nowrap rounded bg-tinta px-1.5 py-0.5 font-cond text-[12px] font-semibold text-white num">{alca.rotulo}</span>
+        )}
+      </div>
+    </Html>
+  );
 }
 
 const somar = (l: Limites, d: Vec3): Limites => ({
@@ -225,13 +293,14 @@ function Conteudo(props: Props & { controles: React.RefObject<OrbitControlsImpl 
       arrastando.current = false;
       document.body.style.cursor = '';
       if (!moveu) aoSoltarSemMover();
+      else r.current.onFimArraste?.();
     };
     window.addEventListener('pointermove', mover);
     window.addEventListener('pointerup', soltar, { once: true });
   };
 
   const onPointerDown = (peca: Peca, e: ThreeEvent<PointerEvent>) => {
-    if (e.nativeEvent.button !== 0) return;
+    if (e.nativeEvent.button !== 0 || r.current.somenteVer) return;
     e.stopPropagation();
     const mid = moduloDaPeca(peca.id);
     if (!mid) return;
@@ -275,6 +344,7 @@ function Conteudo(props: Props & { controles: React.RefObject<OrbitControlsImpl 
 
   const onDoubleClick = (peca: Peca, e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
+    if (r.current.somenteVer) return;
     const mid = moduloDaPeca(peca.id);
     if (mid) r.current.onSelecionar({ modulo: mid, peca: peca.id });
   };
@@ -290,9 +360,13 @@ function Conteudo(props: Props & { controles: React.RefObject<OrbitControlsImpl 
 
   const destaqueDe = (p: Peca): Destaque => {
     const mid = moduloDaPeca(p.id);
+    const marca = props.marcadas?.[p.id];
+    if (marca === 'passo') return 'passo';
+    if (props.somenteVer) return 'nenhum';
     if (sel.peca && (p.id === sel.peca || p.dependeDe === sel.peca)) return 'peca';
     const dentroDoHover = hoverMod !== null && sel.modulo === hoverMod;
     if (hover && !arrastando.current && dentroDoHover && p.id === hover) return 'hover';
+    if (marca === 'conflito') return 'conflito';
     if (!sel.peca && sel.modulo && mid === sel.modulo) return 'modulo';
     if (hover && !arrastando.current && !dentroDoHover && mid === hoverMod) return 'hover';
     return 'nenhum';
@@ -317,6 +391,16 @@ function Conteudo(props: Props & { controles: React.RefObject<OrbitControlsImpl 
           </>
         )}
       </group>
+
+      {props.rotulos &&
+        visiveis
+          .filter((p) => props.rotulos![p.id])
+          .map((p) => (
+            <Html key={`r-${p.id}`} position={[p.box3d!.pos[0] * S, p.box3d!.pos[1] * S, (p.box3d!.pos[2] + p.box3d!.size[2] / 2) * S]} center zIndexRange={[20, 0]}>
+              <span className="pointer-events-none select-none rounded-full bg-[#b5641f] px-1.5 py-0.5 font-cond text-[11px] font-bold text-white">{props.rotulos![p.id]}</span>
+            </Html>
+          ))}
+      {!props.somenteVer && props.alcas?.map((a) => <Alca key={a.id} alca={a} onAlca={props.onAlca} onFim={props.onAlcaFim} controles={controles} />)}
 
       <Grid
         position={[0, lim.min[1] * S - 0.0005, 0]}

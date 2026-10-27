@@ -20,6 +20,7 @@ export const CATALOGO_PADRAO: Catalogo = {
     { id: 'suporte-prateleira', nome: 'Suporte de prateleira (pino)', unidade: 'un', precoCentavos: 15 },
     { id: 'parafuso-4x40', nome: 'Parafuso 4,0 × 40', unidade: 'un', precoCentavos: 8 },
     { id: 'puxador', nome: 'Puxador simples', unidade: 'un', precoCentavos: 800 },
+    { id: 'corredica-telescopica', nome: 'Corrediça telescópica (par)', unidade: 'par', precoCentavos: 2500 },
     { id: 'suporte-parede', nome: 'Suporte de parede (par)', unidade: 'par', precoCentavos: 900 },
   ],
 };

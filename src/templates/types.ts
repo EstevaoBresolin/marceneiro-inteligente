@@ -28,12 +28,16 @@ export type ResultadoTemplate = {
   dimensoes: { largura: number; altura: number; profundidade: number };
 };
 
-export type Contexto = { catalogo: Catalogo; config: Config };
+export type Categoria = 'Com portas' | 'Gavetas' | 'Caixas e estantes' | 'Peças';
+
+/** removidas: peças que o usuário tirou do módulo (o modelo pode se ajustar, ex.: fundo sem a lateral) */
+export type Contexto = { catalogo: Catalogo; config: Config; removidas?: Set<string> };
 
 export type Template = {
   id: string;
   nome: string;
   descricao: string;
+  categoria?: Categoria;
   parametros: ParamDef[];
   horasSugeridas: number;
   gerar(p: Params, ctx: Contexto): ResultadoTemplate;

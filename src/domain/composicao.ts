@@ -1,4 +1,5 @@
 import { TEMPLATES, templatePorId, type Contexto, type Params, type Template } from '../templates';
+import { boxDaTabua } from '../templates/outros';
 import type { Box3d, Extra, ItemFerragem, Modulo, Peca, Projeto } from './types';
 
 export type Vec3 = [number, number, number];
@@ -12,6 +13,8 @@ export type ModuloMontado = {
   /** caixa do módulo no projeto */
   limites: Limites;
   erros: string[];
+  /** quantas peças do modelo o usuário tirou */
+  removidas: number;
 };
 
 export type ProjetoMontado = {
@@ -96,20 +99,39 @@ export function montarProjeto(p: Projeto, ctx: Contexto): ProjetoMontado {
 
   for (const m of mods) {
     const t = templatePorId(m.templateId);
-    const r = t.gerar(m.parametros, ctx);
+    const r = t.gerar(m.parametros, { ...ctx, removidas: new Set(m.removidas ?? []) });
     const errosMod = t.validar?.(m.parametros, ctx) ?? [];
     erros.push(...errosMod.map((e) => (varios ? `${m.nome}: ${e}` : e)));
-    const local = limitesDe(r.pecas.flatMap((x) => (x.box3d ? [x.box3d] : []))) ?? VAZIO;
-    montados.push({ modulo: m, template: t, limitesLocais: local, limites: somar(local, m.posicao), erros: errosMod });
-    for (const x of r.pecas)
+
+    // peças soltas do usuário: o 3D vem da orientação + centro
+    const soltas = (m.pecasExtras ?? []).map((x) => {
+      const chapa = ctx.catalogo.chapas.find((c) => c.id === x.chapaId);
+      const l3 = x.livre3d ?? { orientacao: 'horizontal' as const, centro: [0, 0, 0] as Vec3 };
+      return { ...x, box3d: boxDaTabua(x.comprimento, x.largura, chapa?.espessura ?? 15, l3.orientacao, l3.centro) };
+    });
+
+    // remoções (e o que depende delas, ex.: espelho da porta)
+    const removidas = new Set(m.removidas ?? []);
+    for (const x of r.pecas) if (x.dependeDe && removidas.has(x.dependeDe)) removidas.add(x.id);
+    const desl = m.deslocamentos ?? {};
+
+    const locais = [...r.pecas.filter((x) => !removidas.has(x.id)), ...soltas].map((x) => {
+      const d = desl[x.id];
+      return d && x.box3d ? { ...x, box3d: transladar(x.box3d, d) } : x;
+    });
+
+    const local = limitesDe(locais.flatMap((x) => (x.box3d ? [x.box3d] : []))) ?? VAZIO;
+    montados.push({ modulo: m, template: t, limitesLocais: local, limites: somar(local, m.posicao), erros: errosMod, removidas: removidas.size });
+    for (const x of locais)
       pecas.push({
         ...x,
         id: `${m.id}${SEP}${x.id}`,
         nome: varios ? `${m.nome}: ${x.nome}` : x.nome,
         box3d: x.box3d ? transladar(x.box3d, m.posicao) : undefined,
+        dependeDe: x.dependeDe ? `${m.id}${SEP}${x.dependeDe}` : undefined,
       });
-    ferragens.push(...r.ferragens);
-    extras.push(...r.extras.map((e) => (varios ? { ...e, descricao: `${m.nome}: ${e.descricao}` } : e)));
+    ferragens.push(...r.ferragens.filter((f) => !f.pecaId || !removidas.has(f.pecaId)));
+    extras.push(...r.extras.filter((e) => !e.pecaId || !removidas.has(e.pecaId)).map((e) => (varios ? { ...e, descricao: `${m.nome}: ${e.descricao}` } : e)));
   }
 
   return {
@@ -121,6 +143,9 @@ export function montarProjeto(p: Projeto, ctx: Contexto): ProjetoMontado {
     erros,
   };
 }
+
+/** id local da peça dentro do módulo ("m2:lateral-esq" → "lateral-esq") */
+export const idLocal = (id: string) => (id.includes(SEP) ? id.slice(id.indexOf(SEP) + 1) : id);
 
 // ---------------------------------------------------------------------------
 // Adicionar módulo ao lado de outro
@@ -181,17 +206,17 @@ export function nomeUnico(base: string, mods: Modulo[]) {
 // ---------------------------------------------------------------------------
 
 /**
- * Ajusta a posição (x, y) do módulo para encostar/alinha nas faces dos outros
- * quando estiver a menos de `tol` mm. Sem vizinho perto, arredonda para 5 mm.
+ * Ajusta a posição nos dois eixos do plano de arraste (padrão x e y) para encostar
+ * ou alinhar nas faces das outras caixas quando estiver a menos de `tol` mm.
+ * Sem vizinho perto, arredonda para `grade` mm. O terceiro eixo não muda.
  */
-export function encaixar(local: Limites, pos: Vec3, outros: Limites[], tol = 40): Vec3 {
-  const melhor = (eixo: 0 | 1): number => {
+export function encaixar(local: Limites, pos: Vec3, outros: Limites[], tol = 40, eixos: [number, number] = [0, 1], grade = 5): Vec3 {
+  const melhor = (eixo: number, outro: number): number => {
     const a0 = local.min[eixo];
     const a1 = local.max[eixo];
     const candidatos: number[] = [];
     for (const o of outros) {
       // só encaixa no eixo se as caixas se enxergam no outro eixo (ou estão perto)
-      const outro = eixo === 0 ? 1 : 0;
       const m0 = pos[outro] + local.min[outro];
       const m1 = pos[outro] + local.max[outro];
       const perto = m1 >= o.min[outro] - tol * 4 && m0 <= o.max[outro] + tol * 4;
@@ -203,7 +228,7 @@ export function encaixar(local: Limites, pos: Vec3, outros: Limites[], tol = 40)
         o.max[eixo] - a1,
       );
     }
-    let alvo = Math.round(pos[eixo] / 5) * 5;
+    let alvo = Math.round(pos[eixo] / grade) * grade;
     let dist = tol;
     for (const c of candidatos) {
       const d = Math.abs(c - pos[eixo]);
@@ -214,7 +239,10 @@ export function encaixar(local: Limites, pos: Vec3, outros: Limites[], tol = 40)
     }
     return alvo;
   };
-  return [melhor(0), melhor(1), pos[2]];
+  const out: Vec3 = [...pos];
+  out[eixos[0]] = melhor(eixos[0], eixos[1]);
+  out[eixos[1]] = melhor(eixos[1], eixos[0]);
+  return out;
 }
 
 export const templatesDeModulo = () => TEMPLATES.filter((t) => t.id !== 'livre');

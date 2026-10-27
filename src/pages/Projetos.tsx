@@ -5,7 +5,7 @@ import type { Projeto } from '../domain/types';
 import { ir } from '../lib/router';
 import { useApp } from '../store/app';
 import { montarProjeto } from '../domain/composicao';
-import { templatePorId, TEMPLATES, type Template } from '../templates';
+import { CATEGORIAS, templatePorId, TEMPLATES, type Template } from '../templates';
 
 /** Silhueta frontal simples, desenhada a partir das caixas 3D (sem WebGL) */
 function Miniatura({ projeto }: { projeto: Projeto }) {
@@ -55,13 +55,21 @@ function Miniatura({ projeto }: { projeto: Projeto }) {
 }
 
 function NovoProjeto({ onEscolher }: { onEscolher: (t: Template) => void }) {
+  const grupos: [string, Template[]][] = [...CATEGORIAS.map((c) => [c, TEMPLATES.filter((t) => t.categoria === c)] as [string, Template[]]), ['Sem 3D', TEMPLATES.filter((t) => !t.categoria)]];
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      {TEMPLATES.map((t) => (
-        <button key={t.id} onClick={() => onEscolher(t)} className="rounded-lg border border-linha bg-painel p-4 text-left transition-colors hover:border-aco">
-          <div className="font-cond text-[15px] font-semibold">{t.nome}</div>
-          <div className="mt-1 text-[13px] text-tinta-3">{t.descricao}</div>
-        </button>
+    <div className="space-y-5">
+      {grupos.map(([cat, ts]) => (
+        <div key={cat}>
+          <h3 className="mb-2 text-[13px] font-medium text-tinta-3">{cat}</h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {ts.map((t) => (
+              <button key={t.id} onClick={() => onEscolher(t)} className="rounded-lg border border-linha bg-painel p-4 text-left transition-colors hover:border-aco">
+                <div className="font-cond text-[15px] font-semibold">{t.nome}</div>
+                <div className="mt-1 text-[13px] text-tinta-3">{t.descricao}</div>
+              </button>
+            ))}
+          </div>
+        </div>
       ))}
     </div>
   );

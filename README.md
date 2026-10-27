@@ -15,7 +15,9 @@ npm run build    # gera dist/ (pronto para a Vercel)
 
 ## O que já funciona (Fase 1)
 
-- **Modelos paramétricos**: armário de banheiro com espelho (1 ou 2 portas, espelho colado ou porta de espelho, nicho embaixo, fundo pregado ou embutido, duas formas de montagem), nicho, prateleira, suporte de monitor e lista livre.
+- **Modelos paramétricos** (15): armário de banheiro com espelho, armário com portas, aéreo, balcão, gaveteiro (corrediça telescópica), criado-mudo, cômoda, nicho, estante com divisórias, rack de TV, sapateira, livreiro, prateleira, painel/tampo avulso, suporte de monitor, além da lista livre.
+- **Peças editáveis dentro do módulo**: cada peça física é uma linha. Remova qualquer peça (a porta leva junto espelho, dobradiças e custo do espelho), mova peças no 3D, adicione tábuas soltas. Tirar a lateral que encosta num vizinho faz o módulo deslizar e dividir a lateral do vizinho.
+- **Edição no 3D estilo Figma**: ferramenta cursor (V) seleciona e arrasta, mão (H ou segurar espaço) gira a vista. Clique seleciona o módulo, clique de novo entra na peça. Delete remove, Esc sai, setas movem 1 mm (Shift: 10 mm), Ctrl+Z/Ctrl+Shift+Z desfaz/refaz, Ctrl+D duplica, Alt arrasta sem encaixe.
 - **Módulos**: um projeto pode juntar vários móveis (ex.: armário + nicho ao lado). "Adicionar módulo" coloca o novo à esquerda, à direita, em cima ou embaixo do selecionado, herdando altura/largura, profundidade e chapa. No modo **Mover**, arraste os módulos no 3D: eles encostam sozinhos nas faces dos vizinhos. Cada módulo continua paramétrico e o plano de corte junta as peças de todos.
 - **3D**: girar, vistas (3D, frente, lado, topo), abrir porta, vista explodida, ver dentro, cotas, clicar na peça para achar a linha na tabela, salvar imagem PNG.
 - **Plano de corte**: cortes guilhotina (de ponta a ponta, executáveis na esquadrejadeira), kerf e refilo, respeita o veio, várias chapas, sobras reaproveitáveis, sequência de cortes e metros de corte. Roda num Web Worker.

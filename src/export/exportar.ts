@@ -1,5 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
-import { CORES_PECAS, legendaDoGrupo } from '../cutplan/DiagramaChapa';
+import { chaveLegenda, CORES_PECAS, legendaDoGrupo } from '../cutplan/DiagramaChapa';
 import { textoBordas } from '../cutplan/PlanoCorteView';
 import { GRUPOS, type Custos } from '../costing/calcularCustos';
 import { precoSugerido } from '../costing/precoSugerido';
@@ -99,7 +99,7 @@ export async function pdfPlanoCorte(opts: { projeto: string; plano: PlanoCorte; 
         if (s.w * esc > 60 && s.h * esc > 14) centrado(page, `sobra ${s.w}×${s.h}`, X(s.x + s.w / 2), Y(s.y + s.h / 2), 7, fonte, hex('#8a6c4b'));
       }
       for (const p of ch.pecas) {
-        const leg = legenda.get(p.pecaId);
+        const leg = legenda.get(chaveLegenda(p));
         page.drawRectangle({ x: X(p.x), y: Y(p.y, p.h), width: p.w * esc, height: p.h * esc, color: hex(leg?.cor ?? CORES_PECAS[0]), borderColor: hex('#5b4a39'), borderWidth: 0.8 });
         const w = p.w * esc;
         const h = p.h * esc;
@@ -119,8 +119,8 @@ export async function pdfPlanoCorte(opts: { projeto: string; plano: PlanoCorte; 
       const lx = PW - m - legW;
       texto(page, 'Peças', lx, ly, 11, negrito);
       ly -= 16;
-      for (const [pid, { numero, cor }] of legenda) {
-        const naChapa = ch.pecas.filter((p) => p.pecaId === pid);
+      for (const [chave, { numero, cor, pecaId: pid }] of legenda) {
+        const naChapa = ch.pecas.filter((p) => chaveLegenda(p) === chave);
         if (!naChapa.length) continue;
         const ex = naChapa[0];
         const peca = opts.pecas.find((p) => p.id === pid);

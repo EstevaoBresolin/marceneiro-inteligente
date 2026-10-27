@@ -49,6 +49,8 @@ export const useApp = create<AppState>()(
         ]);
         set((s) => {
           s.catalogo = mesclarPadrao(catalogo, CATALOGO_PADRAO);
+          // ferragens novas usadas pelos modelos entram no catálogo salvo
+          for (const f of CATALOGO_PADRAO.ferragens) if (!s.catalogo.ferragens.some((x) => x.id === f.id)) s.catalogo.ferragens.push(structuredClone(f));
           s.config = mesclarPadrao(config, CONFIG_PADRAO);
           s.projetos = projetos.map(normalizarProjeto);
           s.carregado = true;

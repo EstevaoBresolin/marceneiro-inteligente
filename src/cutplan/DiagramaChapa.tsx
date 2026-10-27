@@ -1,15 +1,22 @@
-import type { ChapaResultado, ResultadoCorte } from '../optimizer';
+import type { ChapaResultado, PecaPosicionada, ResultadoCorte } from '../optimizer';
 
 // tons de madeira/pintura sólidos, distinguíveis entre si e legíveis com texto escuro
 export const CORES_PECAS = ['#e6cfa9', '#c9dbe6', '#d9e3c4', '#efd0c4', '#ddd3ea', '#f1e2a8', '#c8e3dc', '#e8c9d6', '#d6d0c3', '#bfd4ee'];
 
+/** peças iguais (mesmo nome e medida) dividem o mesmo número na legenda */
+export const chaveLegenda = (p: PecaPosicionada) => `${p.rotulo}|${p.rotacionada ? `${p.h}x${p.w}` : `${p.w}x${p.h}`}`;
+
 export function legendaDoGrupo(g: ResultadoCorte) {
-  const ids: string[] = [];
-  for (const c of g.chapas) for (const p of c.pecas) if (!ids.includes(p.pecaId)) ids.push(p.pecaId);
-  return new Map(ids.map((id, i) => [id, { numero: i + 1, cor: CORES_PECAS[i % CORES_PECAS.length] }]));
+  const m = new Map<string, { numero: number; cor: string; pecaId: string }>();
+  for (const c of g.chapas)
+    for (const p of c.pecas) {
+      const k = chaveLegenda(p);
+      if (!m.has(k)) m.set(k, { numero: m.size + 1, cor: CORES_PECAS[m.size % CORES_PECAS.length], pecaId: p.pecaId });
+    }
+  return m;
 }
 
-export function DiagramaChapa({ grupo, chapa, legenda, className }: { grupo: ResultadoCorte; chapa: ChapaResultado; legenda: Map<string, { numero: number; cor: string }>; className?: string }) {
+export function DiagramaChapa({ grupo, chapa, legenda, className }: { grupo: ResultadoCorte; chapa: ChapaResultado; legenda: ReturnType<typeof legendaDoGrupo>; className?: string }) {
   const W = grupo.chapa.largura;
   const H = grupo.chapa.altura;
   const r = grupo.refilo;
@@ -44,7 +51,7 @@ export function DiagramaChapa({ grupo, chapa, legenda, className }: { grupo: Res
       })}
 
       {chapa.pecas.map((p, i) => {
-        const leg = legenda.get(p.pecaId);
+        const leg = legenda.get(chaveLegenda(p));
         const menor = Math.min(p.w, p.h);
         const fsNum = Math.min(base / 14, menor / 2.2);
         const fsMed = Math.min(base / 24, menor / 3.4);

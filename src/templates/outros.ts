@@ -1,62 +1,12 @@
-import type { Peca } from '../domain/types';
-import { bordas, caixa, semBorda } from './comum';
+import type { Orientacao } from '../domain/types';
+import { bordas, caixa, chapaPorId, fitaPorId, peca } from './comum';
 import { bool, num, str, type Template } from './types';
-
-export const nicho: Template = {
-  id: 'nicho',
-  nome: 'Nicho / caixa aberta',
-  descricao: 'Caixa aberta na frente, com prateleiras opcionais.',
-  horasSugeridas: 0.75,
-  parametros: [
-    { id: 'largura', label: 'Largura', tipo: 'numero', padrao: 400, unidade: 'mm', min: 100, max: 2000, passo: 10 },
-    { id: 'altura', label: 'Altura', tipo: 'numero', padrao: 300, unidade: 'mm', min: 100, max: 2000, passo: 10 },
-    { id: 'profundidade', label: 'Profundidade', tipo: 'numero', padrao: 200, unidade: 'mm', min: 60, max: 600, passo: 5 },
-    { id: 'chapaId', label: 'Chapa', tipo: 'chapa', padrao: 'mdf-branco-15' },
-    { id: 'prateleiras', label: 'Prateleiras', tipo: 'numero', padrao: 1, min: 0, max: 6, passo: 1, dica: '1 prateleira = 2 andares.' },
-    { id: 'fundo', label: 'Fundo em HDF 3mm', tipo: 'booleano', padrao: true },
-    { id: 'fitaId', label: 'Fita de borda', tipo: 'fita', padrao: 'fita-branca-22', avancado: true },
-  ],
-  gerar(p, { catalogo }) {
-    const chapa = catalogo.chapas.find((c) => c.id === str(p, 'chapaId')) ?? catalogo.chapas[0];
-    const e = chapa.espessura;
-    const L = num(p, 'largura');
-    const A = num(p, 'altura');
-    const P = num(p, 'profundidade');
-    const n = Math.round(num(p, 'prateleiras'));
-    const fita = str(p, 'fitaId') || null;
-    const girar = !chapa.temVeio;
-    const hdf = bool(p, 'fundo') ? catalogo.chapas.find((c) => c.id === 'hdf-branco-3') : undefined;
-    const tF = hdf?.espessura ?? 0;
-    const Pb = P - tF;
-    const x0 = -L / 2;
-    const x1 = L / 2;
-    const pecas: Peca[] = [
-      { id: 'lateral', nome: 'Lateral', papel: 'lateral', chapaId: chapa.id, comprimento: A, largura: Pb, quantidade: 2, podeGirar: girar, bordas: bordas(fita, { c1: true, l1: true, l2: true }), furos: [{ tipo: 'cavilha_8', quantidade: 4 + 4 * n }], box3d: caixa(x0, x0 + e, 0, A, tF, P) },
-      { id: 'lateral#2', nome: 'Lateral', papel: 'lateral', chapaId: chapa.id, comprimento: A, largura: Pb, quantidade: 0, podeGirar: girar, bordas: { ...semBorda }, furos: [], somente3d: true, box3d: caixa(x1 - e, x1, 0, A, tF, P) },
-      { id: 'tampo', nome: 'Tampo', papel: 'tampo', chapaId: chapa.id, comprimento: L - 2 * e, largura: Pb, quantidade: 1, podeGirar: girar, bordas: bordas(fita, { c1: true }), furos: [{ tipo: 'cavilha_8', quantidade: 4 }], box3d: caixa(x0 + e, x1 - e, A - e, A, tF, P) },
-      { id: 'base', nome: 'Base', papel: 'base', chapaId: chapa.id, comprimento: L - 2 * e, largura: Pb, quantidade: 1, podeGirar: girar, bordas: bordas(fita, { c1: true }), furos: [{ tipo: 'cavilha_8', quantidade: 4 }], box3d: caixa(x0 + e, x1 - e, 0, e, tF, P) },
-    ];
-    if (n > 0) {
-      const vao = (A - 2 * e - n * e) / (n + 1);
-      for (let k = 1; k <= n; k++) {
-        const y = e + k * vao + (k - 1) * e;
-        pecas.push({ id: k === 1 ? 'prateleira' : `prateleira#${k}`, nome: 'Prateleira', papel: 'prateleira', chapaId: chapa.id, comprimento: L - 2 * e, largura: Pb, quantidade: k === 1 ? n : 0, podeGirar: girar, bordas: bordas(fita, { c1: true }), furos: [{ tipo: 'cavilha_8', quantidade: 4 }], somente3d: k > 1, box3d: caixa(x0 + e, x1 - e, y, y + e, tF, P) });
-      }
-    }
-    if (hdf) pecas.push({ id: 'fundo', nome: 'Fundo', papel: 'fundo', chapaId: hdf.id, comprimento: A - 4, largura: L - 4, quantidade: 1, podeGirar: true, bordas: { ...semBorda }, furos: [], box3d: caixa(x0 + 2, x1 - 2, 2, A - 2, 0, tF) });
-    return {
-      pecas,
-      ferragens: [{ ferragemId: 'parafuso-4x40', quantidade: hdf ? 16 : 8 }, { ferragemId: 'suporte-parede', quantidade: 1 }],
-      extras: [],
-      dimensoes: { largura: L, altura: A, profundidade: P },
-    };
-  },
-};
 
 export const prateleira: Template = {
   id: 'prateleira',
   nome: 'Prateleira simples',
   descricao: 'Tábua com suporte oculto, opcional rebaixo para fita LED.',
+  categoria: 'Peças',
   horasSugeridas: 0.3,
   parametros: [
     { id: 'comprimento', label: 'Comprimento', tipo: 'numero', padrao: 600, unidade: 'mm', min: 100, max: 2700, passo: 10 },
@@ -66,30 +16,26 @@ export const prateleira: Template = {
     { id: 'fitaId', label: 'Fita de borda', tipo: 'fita', padrao: 'fita-branca-22', avancado: true },
   ],
   gerar(p, { catalogo }) {
-    const chapa = catalogo.chapas.find((c) => c.id === str(p, 'chapaId')) ?? catalogo.chapas[0];
-    const e = chapa.espessura;
+    const chapa = chapaPorId(catalogo, str(p, 'chapaId'));
     const C = num(p, 'comprimento');
     const P = num(p, 'profundidade');
-    const fita = str(p, 'fitaId') || null;
     return {
       pecas: [
-        {
+        peca({
           id: 'prateleira',
           nome: bool(p, 'rebaixoLed') ? 'Prateleira (rebaixo LED)' : 'Prateleira',
           papel: 'prateleira',
-          chapaId: chapa.id,
+          chapa,
           comprimento: C,
           largura: P,
-          quantidade: 1,
-          podeGirar: !chapa.temVeio,
-          bordas: bordas(fita, { c1: true, l1: true, l2: true }),
+          bordas: bordas(fitaPorId(catalogo, str(p, 'fitaId')), { c1: true, l1: true, l2: true }),
           furos: [{ tipo: 'outro', quantidade: 2 }],
-          box3d: caixa(-C / 2, C / 2, 0, e, 0, P),
-        },
+          box3d: caixa(-C / 2, C / 2, 0, chapa.espessura, 0, P),
+        }),
       ],
       ferragens: [{ ferragemId: 'parafuso-4x40', quantidade: 4 }],
       extras: [],
-      dimensoes: { largura: C, altura: e, profundidade: P },
+      dimensoes: { largura: C, altura: chapa.espessura, profundidade: P },
     };
   },
 };
@@ -98,6 +44,7 @@ export const suporteMonitor: Template = {
   id: 'suporte-monitor',
   nome: 'Suporte de monitor (U)',
   descricao: 'Tampo apoiado sobre dois pés.',
+  categoria: 'Peças',
   horasSugeridas: 0.4,
   parametros: [
     { id: 'comprimento', label: 'Comprimento', tipo: 'numero', padrao: 400, unidade: 'mm', min: 200, max: 1500, passo: 10 },
@@ -107,22 +54,87 @@ export const suporteMonitor: Template = {
     { id: 'fitaId', label: 'Fita de borda', tipo: 'fita', padrao: 'fita-branca-22', avancado: true },
   ],
   gerar(p, { catalogo }) {
-    const chapa = catalogo.chapas.find((c) => c.id === str(p, 'chapaId')) ?? catalogo.chapas[0];
+    const chapa = chapaPorId(catalogo, str(p, 'chapaId'));
     const e = chapa.espessura;
     const C = num(p, 'comprimento');
     const P = num(p, 'profundidade');
     const H = num(p, 'altura');
-    const fita = str(p, 'fitaId') || null;
-    const girar = !chapa.temVeio;
+    const fita = fitaPorId(catalogo, str(p, 'fitaId'));
+    const pe = (id: string, nome: string, xa: number) =>
+      peca({ id, nome, papel: 'lateral', chapa, comprimento: P, largura: H - e, bordas: bordas(fita, { c1: true, l1: true, l2: true }), furos: [{ tipo: 'cavilha_8', quantidade: 2 }], box3d: caixa(xa, xa + e, 0, H - e, 0, P) });
     return {
       pecas: [
-        { id: 'tampo', nome: 'Tampo', papel: 'tampo', chapaId: chapa.id, comprimento: C, largura: P, quantidade: 1, podeGirar: girar, bordas: bordas(fita, { c1: true, c2: true, l1: true, l2: true }), furos: [{ tipo: 'cavilha_8', quantidade: 4 }], box3d: caixa(-C / 2, C / 2, H - e, H, 0, P) },
-        { id: 'pe', nome: 'Pé', papel: 'lateral', chapaId: chapa.id, comprimento: P, largura: H - e, quantidade: 2, podeGirar: girar, bordas: bordas(fita, { c1: true, l1: true, l2: true }), furos: [{ tipo: 'cavilha_8', quantidade: 2 }], box3d: caixa(-C / 2, -C / 2 + e, 0, H - e, 0, P) },
-        { id: 'pe#2', nome: 'Pé', papel: 'lateral', chapaId: chapa.id, comprimento: P, largura: H - e, quantidade: 0, podeGirar: girar, bordas: { ...semBorda }, furos: [], somente3d: true, box3d: caixa(C / 2 - e, C / 2, 0, H - e, 0, P) },
+        peca({ id: 'tampo', nome: 'Tampo', papel: 'tampo', chapa, comprimento: C, largura: P, bordas: bordas(fita, { c1: true, c2: true, l1: true, l2: true }), furos: [{ tipo: 'cavilha_8', quantidade: 4 }], box3d: caixa(-C / 2, C / 2, H - e, H, 0, P) }),
+        pe('pe-esq', 'Pé esquerdo', -C / 2),
+        pe('pe-dir', 'Pé direito', C / 2 - e),
       ],
       ferragens: [],
       extras: [],
       dimensoes: { largura: C, altura: H, profundidade: P },
+    };
+  },
+};
+
+/** caixa 3D de uma tábua conforme a orientação; centro em mm */
+export function boxDaTabua(comprimento: number, largura: number, e: number, orientacao: Orientacao, centro: [number, number, number]) {
+  const [cx, cy, cz] = centro;
+  const tam: [number, number, number] =
+    orientacao === 'horizontal' ? [comprimento, e, largura] : orientacao === 'lateral' ? [e, comprimento, largura] : [largura, comprimento, e];
+  return caixa(cx - tam[0] / 2, cx + tam[0] / 2, cy - tam[1] / 2, cy + tam[1] / 2, cz - tam[2] / 2, cz + tam[2] / 2);
+}
+
+export const painel: Template = {
+  id: 'painel',
+  nome: 'Painel / tampo avulso',
+  descricao: 'Uma tábua só, deitada ou em pé: tampo por cima de módulos, costas, lateral de acabamento.',
+  categoria: 'Peças',
+  horasSugeridas: 0.2,
+  parametros: [
+    { id: 'comprimento', label: 'Comprimento', tipo: 'numero', padrao: 900, unidade: 'mm', min: 50, max: 2750, passo: 10 },
+    { id: 'largura', label: 'Largura', tipo: 'numero', padrao: 350, unidade: 'mm', min: 30, max: 1850, passo: 5 },
+    { id: 'chapaId', label: 'Chapa', tipo: 'chapa', padrao: 'mdf-branco-18' },
+    {
+      id: 'orientacao',
+      label: 'Posição',
+      tipo: 'opcoes',
+      padrao: 'horizontal',
+      opcoes: [
+        { valor: 'horizontal', label: 'Deitada (tampo)' },
+        { valor: 'lateral', label: 'Em pé, de lado' },
+        { valor: 'frontal', label: 'Em pé, de frente' },
+      ],
+    },
+    {
+      id: 'fita',
+      label: 'Fita',
+      tipo: 'opcoes',
+      padrao: 'frente',
+      opcoes: [
+        { valor: 'nenhuma', label: 'Sem fita' },
+        { valor: 'frente', label: 'Só na frente' },
+        { valor: 'tres', label: 'Frente e pontas' },
+        { valor: 'todas', label: '4 lados' },
+      ],
+    },
+    { id: 'fitaId', label: 'Fita de borda', tipo: 'fita', padrao: 'fita-branca-22', avancado: true },
+  ],
+  gerar(p, { catalogo }) {
+    const chapa = chapaPorId(catalogo, str(p, 'chapaId'));
+    const e = chapa.espessura;
+    const C = num(p, 'comprimento');
+    const W = num(p, 'largura');
+    const o = (str(p, 'orientacao') || 'horizontal') as Orientacao;
+    const lados = str(p, 'fita');
+    const fita = fitaPorId(catalogo, str(p, 'fitaId'));
+    const b = bordas(fita, { c1: lados !== 'nenhuma', c2: lados === 'todas', l1: lados === 'tres' || lados === 'todas', l2: lados === 'tres' || lados === 'todas' });
+    // centro de forma que a peça fique apoiada no chão e encostada atrás
+    const box = boxDaTabua(C, W, e, o, [0, 0, 0]);
+    const centro: [number, number, number] = [0, box.size[1] / 2, box.size[2] / 2];
+    return {
+      pecas: [peca({ id: 'painel', nome: o === 'horizontal' ? 'Tampo' : 'Painel', papel: o === 'horizontal' ? 'tampo' : 'lateral', chapa, comprimento: C, largura: W, bordas: b, box3d: boxDaTabua(C, W, e, o, centro) })],
+      ferragens: [],
+      extras: [],
+      dimensoes: { largura: box.size[0], altura: box.size[1], profundidade: box.size[2] },
     };
   },
 };

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { fmtNum } from '../domain/money';
 import type { FitaBorda, Peca } from '../domain/types';
 import type { PlanoCorte } from '../optimizer';
-import { DiagramaChapa, legendaDoGrupo } from './DiagramaChapa';
+import { chaveLegenda, DiagramaChapa, legendaDoGrupo } from './DiagramaChapa';
 
 export function textoBordas(p: Peca, fitas: FitaBorda[]) {
   const lados = [
@@ -78,14 +78,14 @@ export function PlanoCorteView({ plano, pecas, fitas, calculando }: { plano: Pla
             </h3>
 
             <ol className="mt-2 mb-3 grid gap-x-6 gap-y-1 text-[13px] sm:grid-cols-2 xl:grid-cols-3">
-              {[...legenda.entries()].map(([pid, { numero, cor }]) => {
+              {[...legenda.entries()].map(([chave, { numero, cor, pecaId: pid }]) => {
                 const peca = pecas.find((p) => p.id === pid);
-                const qtd = g.chapas.reduce((s, c) => s + c.pecas.filter((p) => p.pecaId === pid).length, 0);
-                const exemplo = g.chapas.flatMap((c) => c.pecas).find((p) => p.pecaId === pid)!;
+                const qtd = g.chapas.reduce((s, c) => s + c.pecas.filter((p) => chaveLegenda(p) === chave).length, 0);
+                const exemplo = g.chapas.flatMap((c) => c.pecas).find((p) => chaveLegenda(p) === chave)!;
                 const c = exemplo.rotacionada ? exemplo.h : exemplo.w;
                 const l = exemplo.rotacionada ? exemplo.w : exemplo.h;
                 return (
-                  <li key={pid} className="flex items-center gap-2">
+                  <li key={chave} className="flex items-center gap-2">
                     <span className="inline-flex size-5 items-center justify-center rounded-sm font-cond text-xs font-bold" style={{ background: cor }}>
                       {numero}
                     </span>

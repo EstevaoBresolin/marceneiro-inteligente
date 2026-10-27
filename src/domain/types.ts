@@ -102,17 +102,27 @@ export type Peca = {
   box3d?: Box3d;
   /** peça alterada à mão: o template não sobrescreve */
   editadaManualmente?: boolean;
+  /** some junto quando a peça indicada é removida (ex.: espelho colado na porta) */
+  dependeDe?: string;
+  /** peça solta adicionada pelo usuário: o 3D sai daqui (centro em mm, relativo ao módulo) */
+  livre3d?: { orientacao: Orientacao; centro: [number, number, number] };
 };
+
+/** horizontal = deitada (prateleira); lateral = em pé de lado; frontal = em pé de frente */
+export type Orientacao = 'horizontal' | 'lateral' | 'frontal';
 
 export type Box3d = {
   pos: [number, number, number];
   size: [number, number, number];
   /** eixo da dobradiça (para abrir a porta): x e z do eixo vertical, sinal do giro */
   dobradica?: { x: number; z: number; sinal: 1 | -1 };
+  /** gaveta: quanto ela corre para a frente ao abrir, mm */
+  gaveta?: number;
 };
 
-export type ItemFerragem = { ferragemId: string; quantidade: number };
-export type Extra = { descricao: string; custoCentavos: number; detalhe?: string };
+/** pecaId (opcional): se a peça for removida, o item sai junto (ex.: dobradiças da porta) */
+export type ItemFerragem = { ferragemId: string; quantidade: number; pecaId?: string };
+export type Extra = { descricao: string; custoCentavos: number; detalhe?: string; pecaId?: string };
 
 /** Um móvel paramétrico dentro do projeto, posicionado no espaço (mm) */
 export type Modulo = {
@@ -122,6 +132,12 @@ export type Modulo = {
   parametros: Record<string, number | boolean | string>;
   /** deslocamento da origem do módulo (centro embaixo, atrás), mm */
   posicao: [number, number, number];
+  /** ids (locais) das peças que o usuário tirou */
+  removidas?: string[];
+  /** peças movidas à mão: deslocamento em mm a partir de onde o template as coloca */
+  deslocamentos?: Record<string, [number, number, number]>;
+  /** peças soltas que o usuário adicionou neste módulo */
+  pecasExtras?: Peca[];
 };
 
 export type Projeto = {

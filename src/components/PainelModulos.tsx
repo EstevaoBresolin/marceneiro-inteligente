@@ -2,7 +2,7 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronRight, Copy, Plus, Tr
 import { useState } from 'react';
 import { type Lado, type ModuloMontado, templatesDeModulo } from '../domain/composicao';
 import type { Catalogo, Modulo } from '../domain/types';
-import { templatePorId } from '../templates';
+import { CATEGORIAS, templatePorId } from '../templates';
 import { ParamForm } from './ParamForm';
 import { Botao, Campo, NumeroInput, Selecao, TextoInput, cx } from './ui';
 
@@ -34,10 +34,11 @@ type Props = {
   onAdicionar: (templateId: string, lado: Lado) => void;
   onDuplicar: (id: string) => void;
   onRemover: (id: string) => void;
+  onRestaurar: (id: string) => void;
   catalogo: Catalogo;
 };
 
-export function PainelModulos({ montados, selecionado, onSelecionar, onAlterar, onTrocarTipo, onAdicionar, onDuplicar, onRemover, catalogo }: Props) {
+export function PainelModulos({ montados, selecionado, onSelecionar, onAlterar, onTrocarTipo, onAdicionar, onDuplicar, onRemover, onRestaurar, catalogo }: Props) {
   const [adicionando, setAdicionando] = useState(false);
   const [tipoNovo, setTipoNovo] = useState('nicho');
   const [posicao, setPosicao] = useState(false);
@@ -82,9 +83,32 @@ export function PainelModulos({ montados, selecionado, onSelecionar, onAlterar, 
           </button>
         ) : (
           <div className="mt-2 space-y-3 rounded-md border border-aco/40 bg-aco-claro/40 p-3">
-            <Campo label="O quê">
-              <Selecao ariaLabel="Tipo do novo módulo" valor={tipoNovo} onChange={setTipoNovo} opcoes={templatesDeModulo().map((t) => ({ valor: t.id, label: t.nome }))} />
-            </Campo>
+            <div>
+              <div className="mb-1 text-[13px] text-tinta-2">O quê</div>
+              <div className="max-h-64 space-y-2 overflow-y-auto pr-1" role="radiogroup" aria-label="Tipo do novo módulo">
+                {CATEGORIAS.map((cat) => (
+                  <div key={cat}>
+                    <div className="mb-1 text-[11px] text-tinta-3">{cat}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {templatesDeModulo()
+                        .filter((t) => t.categoria === cat)
+                        .map((t) => (
+                          <button
+                            key={t.id}
+                            role="radio"
+                            aria-checked={tipoNovo === t.id}
+                            title={t.descricao}
+                            onClick={() => setTipoNovo(t.id)}
+                            className={cx('rounded-full border px-2.5 py-1 text-[12px]', tipoNovo === t.id ? 'border-aco bg-aco text-white' : 'border-linha bg-painel text-tinta-2 hover:border-tinta-3')}
+                          >
+                            {t.nome}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div>
               <div className="mb-1 text-[13px] text-tinta-2">Onde, em relação a {atual?.modulo.nome ?? 'o módulo'}</div>
               <div className="grid grid-cols-2 gap-1.5">
@@ -172,6 +196,11 @@ export function PainelModulos({ montados, selecionado, onSelecionar, onAlterar, 
             <Botao tamanho="sm" variante="fantasma" onClick={() => onDuplicar(atual.modulo.id)}>
               <Copy className="size-3.5" /> Duplicar
             </Botao>
+            {(atual.removidas > 0 || Object.keys(atual.modulo.deslocamentos ?? {}).length > 0) && (
+              <Botao tamanho="sm" variante="fantasma" onClick={() => onRestaurar(atual.modulo.id)} title="Volta as peças removidas e movidas">
+                Restaurar peças
+              </Botao>
+            )}
             {varios && (
               <Botao tamanho="sm" variante="perigo" onClick={() => onRemover(atual.modulo.id)}>
                 <Trash2 className="size-3.5" /> Remover módulo

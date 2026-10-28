@@ -1,6 +1,9 @@
 import { AlertTriangle, ArrowLeft, Box, Camera, DoorOpen, Eye, FileDown, FileSpreadsheet, Hand, Image, Layers, MousePointer2, Plus, Redo2, Ruler, Trash2, Undo2 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CustosView } from '../components/CustosView';
+import { OrcamentoView } from '../components/OrcamentoView';
+import { novoOrcamento } from '../domain/orcamento';
+import { rastrear } from '../lib/telemetria';
 import { DesenhosView } from '../components/DesenhosView';
 import { ManualView } from '../components/ManualView';
 import { numerarPecas } from '../domain/usinagem';
@@ -34,18 +37,18 @@ import type { Modulo, Orientacao, Peca, Projeto } from '../domain/types';
 import { ir } from '../lib/router';
 import { usePlanoCorte } from '../lib/usePlanoCorte';
 import { useApp } from '../store/app';
-import { templatePorId } from '../templates';
+import { parametrosIniciais, templatePorId } from '../templates';
 import type { AlcaCena, CenaHandle, Ferramenta, OpcoesCena, Selecao, Vista } from '../viewer3d/Scene';
 
 const Cena = lazy(() => import('../viewer3d/Scene').then((m) => ({ default: m.Cena })));
 
-type Aba = 'pecas' | 'desenhos' | 'montagem' | 'corte' | 'custos' | 'exportar';
+type Aba = 'pecas' | 'desenhos' | 'montagem' | 'corte' | 'custos' | 'orcamento' | 'exportar';
 
 const NADA: Selecao = { modulo: null, peca: null };
 const somarV = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 
 export function Editor({ id }: { id: string }) {
-  const { projetos, catalogo, config, salvarProjeto, carregado } = useApp();
+  const { projetos, catalogo, config, salvarProjeto, carregado, setConfig } = useApp();
   const original = projetos.find((p) => p.id === id);
   const [p, setP] = useState<Projeto | null>(original ? normalizarProjeto(original) : null);
   const [sel, setSel] = useState<Selecao>(NADA);
@@ -149,7 +152,7 @@ export function Editor({ id }: { id: string }) {
     if (!p) return;
     const t = templatePorId(templateId);
     const vizinho = montados.find((m) => m.modulo.id === moduloPainel) ?? montados[montados.length - 1];
-    const params = base ? { ...base.parametros } : parametrosHerdados(t, vizinho, lado);
+    const params = base ? { ...base.parametros } : parametrosHerdados(t, vizinho, lado, parametrosIniciais(t, config.padroes));
     const local = limitesDe(t.gerar(params, ctx).pecas.flatMap((q) => (q.box3d ? [q.box3d] : []))) ?? { min: [0, 0, 0] as Vec3, max: [0, 0, 0] as Vec3 };
     const mods = p.modulos ?? [];
     const novo: Modulo = {
@@ -163,6 +166,7 @@ export function Editor({ id }: { id: string }) {
     atualizar((x) => compartilharLaterais({ ...x, modulos: [...(x.modulos ?? []), novo], horasMaoDeObra: Math.round((x.horasMaoDeObra + t.horasSugeridas) * 100) / 100 }, ctx, novo.id));
     setSel({ modulo: novo.id, peca: null });
     setVistaSeq((v) => v + 1);
+    rastrear('modulo_adicionado', { modelo: t.id, lado, duplicado: !!base });
   };
 
   const trocarTipo = (mid: string, templateId: string) => {
@@ -219,6 +223,7 @@ export function Editor({ id }: { id: string }) {
   };
 
   const removerPeca = (fullId: string) => {
+    rastrear('peca_removida', { peca: idLocal(fullId).replace(/-\d+$/, '') });
     if (livre) {
       atualizar((x) => ({ ...x, pecas: x.pecas.filter((q) => q.id !== fullId) }));
       return;
@@ -485,7 +490,25 @@ export function Editor({ id }: { id: string }) {
       </div>
     );
 
+  const capturarImagem = async () => {
+    setSel(NADA);
+    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return cena.current?.capturarPng() ?? null;
+  };
+
+  const abrirAba = (a: Aba) => {
+    setAba(a);
+    rastrear('aba_aberta', { aba: a });
+    if (a === 'orcamento' && p && !p.orcamento) {
+      const o = novoOrcamento(config);
+      setConfig((c) => void (c.proximoOrcamento = o.numero + 1));
+      atualizar((x) => ({ ...x, orcamento: o }));
+    }
+  };
+
   const exportar = async (tipo: string) => {
+    rastrear('exportou', { tipo });
     if (tipo === 'manual') {
       setAba('montagem');
       setExportarManual(true);
@@ -736,12 +759,13 @@ export function Editor({ id }: { id: string }) {
           <div className="flex-1 bg-painel">
             <Abas<Aba>
               valor={aba}
-              onChange={setAba}
+              onChange={abrirAba}
               abas={[
                 { id: 'pecas', label: `Peças (${pecas.filter((x) => !x.somente3d).reduce((s, x) => s + x.quantidade, 0)})` },
                 ...(livre ? [] : [{ id: 'desenhos' as const, label: 'Desenhos' }, { id: 'montagem' as const, label: 'Montagem' }]),
                 { id: 'corte', label: <>Plano de corte{calculando && <span className="ml-1.5 inline-block size-1.5 animate-pulse rounded-full bg-mdf align-middle" />}</> },
                 { id: 'custos', label: 'Custos' },
+                { id: 'orcamento', label: 'Orçamento' },
                 { id: 'exportar', label: 'Exportar' },
               ]}
             />
@@ -805,11 +829,24 @@ export function Editor({ id }: { id: string }) {
             )}
             {aba === 'corte' && <PlanoCorteView plano={plano} pecas={pecas} fitas={catalogo.fitas} calculando={calculando} />}
             {aba === 'custos' && <CustosView custos={custos} venda={config.venda} />}
+            {aba === 'orcamento' && p.orcamento && montado && (
+              <OrcamentoView
+                projeto={p}
+                orcamento={p.orcamento}
+                montado={montado}
+                custos={custos}
+                config={config}
+                catalogo={catalogo}
+                onCliente={(c) => atualizar((x) => ({ ...x, cliente: c }))}
+                onOrcamento={(o) => atualizar((x) => ({ ...x, orcamento: o }))}
+                capturarImagem={capturarImagem}
+              />
+            )}
             {aba === 'exportar' && (
               <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
                 {[
                   { id: 'corte', icone: <FileDown className="size-5" />, titulo: 'Plano de corte (PDF)', texto: 'Uma chapa por página, com legenda e fitas. Para mandar à marcenaria.' },
-                  { id: 'orcamento', icone: <FileDown className="size-5" />, titulo: 'Ficha e orçamento (PDF)', texto: 'Imagem 3D, medidas, lista de peças, custos e preço sugerido.' },
+                  { id: 'orcamento', icone: <FileDown className="size-5" />, titulo: 'Ficha de custos (PDF)', texto: 'Uso interno: imagem 3D, peças, custos linha a linha e preço sugerido.' },
                   { id: 'desenhos', icone: <FileDown className="size-5" />, titulo: 'Desenhos com furação (PDF)', texto: 'Cada peça com medidas, fita e a posição de cada furo.' },
                   { id: 'manual', icone: <FileDown className="size-5" />, titulo: 'Manual de montagem (PDF)', texto: 'Passo a passo com imagem 3D de cada etapa.' },
                   { id: 'csv', icone: <FileSpreadsheet className="size-5" />, titulo: 'Lista de corte (CSV)', texto: 'Abre no Excel ou em outro programa de corte.' },

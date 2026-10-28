@@ -13,6 +13,19 @@ npm test         # testes do otimizador, custos, templates e leitura de peças
 npm run build    # gera dist/ (pronto para a Vercel)
 ```
 
+## Período de teste com marcenarias
+
+- **Endereço**: https://marceneiro-inteligente.vercel.app (publica sozinho a cada push no `main`).
+- **Onboarding**: na primeira entrada, 4 passos — marcenaria (nome, WhatsApp, logo), chapas e preços, folgas e lucro, primeiro móvel.
+- **Orçamento para o cliente**: aba *Orçamento* no projeto — dados do cliente, condições, valor (sugerido ou digitado), PDF com logo, itens, materiais, condições e assinatura (sem custos internos), resumo pronto no WhatsApp, situação (rascunho/enviado/aprovado/recusado).
+- **Preço**: lucro desejado + imposto + comissão (arquiteto/vendedor) + taxa de cartão, todos sobre o preço; mostra o markup.
+- **Feedback**: botão no topo, com print automático da tela.
+- **Registro de uso**: eventos simples (abriu, criou projeto, gerou orçamento, exportou, erros) vão em lote para `/api/eventos`.
+- **Admin**: `#/admin` com a senha `ADMIN_TOKEN` (variável na Vercel) mostra cada marcenaria, última vez que usou, gráfico de 21 dias, contagens, linha do tempo e os feedbacks com print.
+- **Onde ficam os dados**: os projetos de cada marcenaria ficam no navegador dela (IndexedDB, com pedido de armazenamento persistente). Eventos e feedbacks ficam num Vercel Blob privado (`marceneiro-teste`, região São Paulo). Login e banco (Supabase) ficam para depois.
+
+Funções em `api/` (`eventos`, `feedback`, `admin`); sem `BLOB_READ_WRITE_TOKEN` elas guardam em memória, o que permite testar com `npm test`.
+
 ## O que já funciona (Fase 1)
 
 - **Modelos paramétricos** (15): armário de banheiro com espelho, armário com portas, aéreo, balcão, gaveteiro (corrediça telescópica), criado-mudo, cômoda, nicho, estante com divisórias, rack de TV, sapateira, livreiro, prateleira, painel/tampo avulso, suporte de monitor, além da lista livre.

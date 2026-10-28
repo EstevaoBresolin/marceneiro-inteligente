@@ -55,12 +55,34 @@ export type ServicoConfig = {
   espelhoM2Centavos: number;
 };
 
+/** Como a marcenaria forma o preço para o cliente final */
 export type ConfigVenda = {
-  comissaoMarketplacePercent: number;
-  taxaFixaCentavos: number;
-  freteCentavos: number;
-  impostoPercent: number;
+  /** lucro que sobra depois de tudo, em % do preço */
   margemDesejadaPercent: number;
+  /** imposto sobre a venda (Simples etc.), % do preço */
+  impostoPercent: number;
+  /** comissão de arquiteto/designer (RT) ou vendedor, % do preço */
+  comissaoPercent: number;
+  /** taxa da maquininha/parcelamento, % do preço */
+  taxaCartaoPercent: number;
+  /** padrões que aparecem em cada orçamento novo */
+  validadeDias: number;
+  prazoEntregaDias: number;
+  formaPagamento: string;
+  descontoAVistaPercent: number;
+  observacoes: string;
+};
+
+export type Empresa = {
+  nome: string;
+  responsavel: string;
+  telefone: string;
+  email: string;
+  documento: string;
+  endereco: string;
+  cidade: string;
+  /** imagem em data URL (png/jpg) */
+  logo: string | null;
 };
 
 export type Catalogo = {
@@ -72,6 +94,30 @@ export type Catalogo = {
 export type Config = {
   servico: ServicoConfig;
   venda: ConfigVenda;
+  empresa: Empresa;
+  /** folgas e recuos padrão aplicados em todo módulo novo */
+  padroes: { folgaPorta: number; recuoPrateleira: number };
+  onboardingConcluido: boolean;
+  proximoOrcamento: number;
+};
+
+export type Cliente = { nome: string; telefone: string; email: string; endereco: string };
+
+export type StatusOrcamento = 'rascunho' | 'enviado' | 'aprovado' | 'recusado';
+
+export type Orcamento = {
+  numero: number;
+  data: string;
+  validadeDias: number;
+  prazoEntregaDias: number;
+  formaPagamento: string;
+  descontoAVistaPercent: number;
+  observacoes: string;
+  /** preço final digitado à mão; null = usa o sugerido */
+  precoManualCentavos: number | null;
+  /** detalhar os módulos (ambientes) no PDF */
+  detalharItens: boolean;
+  status: StatusOrcamento;
 };
 
 export type Bordas = {
@@ -157,4 +203,6 @@ export type Projeto = {
   horasMaoDeObra: number;
   quantidadeLote: number;
   atualizadoEm: number;
+  cliente?: Cliente;
+  orcamento?: Orcamento;
 };

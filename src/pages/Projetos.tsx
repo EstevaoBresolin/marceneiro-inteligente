@@ -5,6 +5,7 @@ import type { Projeto } from '../domain/types';
 import { ir } from '../lib/router';
 import { useApp } from '../store/app';
 import { montarProjeto } from '../domain/composicao';
+import { corStatus } from '../components/OrcamentoView';
 import { CATEGORIAS, templatePorId, TEMPLATES, type Template } from '../templates';
 
 /** Silhueta frontal simples, desenhada a partir das caixas 3D (sem WebGL) */
@@ -111,7 +112,11 @@ export function Projetos() {
                 <Miniatura projeto={p} />
               </div>
               <div className="p-4 pb-2">
-                <h2 className="font-cond text-[17px] font-semibold">{p.nome}</h2>
+                <div className="flex items-start justify-between gap-2">
+                  <h2 className="font-cond text-[17px] font-semibold">{p.nome}</h2>
+                  {p.orcamento && <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${corStatus(p.orcamento.status).cor}`}>{corStatus(p.orcamento.status).label}</span>}
+                </div>
+                {p.cliente?.nome && <p className="text-[13px] text-tinta-2">{p.cliente.nome}</p>}
                 <p className="text-[13px] text-tinta-3">
                   {p.modulos && p.modulos.length > 1 ? p.modulos.map((m) => m.nome).join(' + ') : templatePorId(p.templateId).nome}
                   {p.quantidadeLote > 1 ? ` · lote de ${p.quantidadeLote}` : ''} · {new Date(p.atualizadoEm).toLocaleDateString('pt-BR')}

@@ -8,9 +8,9 @@ import type { Chapa, ConfigVenda, FitaBorda, Peca } from '../domain/types';
 import type { PlanoCorte } from '../optimizer';
 
 /** Helvetica (WinAnsi) não tem setas etc. */
-const t = (s: string) => s.replace(/[↻→↔↕]/g, '').replace(/[^\x20-\x7E -ÿ]/g, '');
+export const t = (s: string) => s.replace(/[↻→↔↕]/g, '').replace(/[^\x20-\x7E -ÿ]/g, '');
 
-const hex = (h: string) => {
+export const hex = (h: string) => {
   const n = parseInt(h.slice(1), 16);
   return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
 };
@@ -29,7 +29,7 @@ export function baixar(dados: Uint8Array | string, nome: string, tipo: string) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-const slug = (s: string) =>
+export const slug = (s: string) =>
   s
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
@@ -39,11 +39,11 @@ const slug = (s: string) =>
 
 const hoje = () => new Date().toLocaleDateString('pt-BR');
 
-function texto(page: PDFPage, s: string, x: number, y: number, size: number, font: PDFFont, color = TINTA) {
+export function texto(page: PDFPage, s: string, x: number, y: number, size: number, font: PDFFont, color = TINTA) {
   page.drawText(t(s), { x, y, size, font, color });
 }
 
-function centrado(page: PDFPage, s: string, cx: number, cy: number, size: number, font: PDFFont, color = TINTA) {
+export function centrado(page: PDFPage, s: string, cx: number, cy: number, size: number, font: PDFFont, color = TINTA) {
   const w = font.widthOfTextAtSize(t(s), size);
   page.drawText(t(s), { x: cx - w / 2, y: cy - size * 0.35, size, font, color });
 }
@@ -171,7 +171,7 @@ export async function pdfOrcamento(opts: {
   };
 
   texto(page, opts.projeto, m, y - 14, 18, negrito);
-  texto(page, `Ficha técnica e orçamento · ${hoje()}`, m, y - 32, 10, fonte, CINZA);
+  texto(page, `Ficha técnica e custos (uso interno) · ${hoje()}`, m, y - 32, 10, fonte, CINZA);
   y -= 50;
 
   if (opts.imagemPng) {
@@ -244,11 +244,11 @@ export async function pdfOrcamento(opts: {
   const sug = precoSugerido(c.unitarioCentavos, opts.venda);
   if (sug !== null) {
     const s = brl(sug);
-    texto(page, `Preço sugerido (margem ${fmtNum(opts.venda.margemDesejadaPercent, 0)}%, comissão ${fmtNum(opts.venda.comissaoMarketplacePercent, 1)}%)`, m, y, 11, fonte);
+    texto(page, `Preço sugerido (lucro ${fmtNum(opts.venda.margemDesejadaPercent, 0)}%, imposto ${fmtNum(opts.venda.impostoPercent, 1)}%, comissão ${fmtNum(opts.venda.comissaoPercent, 1)}%)`, m, y, 11, fonte);
     texto(page, s, PW - m - negrito.widthOfTextAtSize(t(s), 14), y, 14, negrito, hex('#2f5d7c'));
   }
 
-  baixar(await doc.save(), `orcamento-${slug(opts.projeto)}.pdf`, 'application/pdf');
+  baixar(await doc.save(), `ficha-custos-${slug(opts.projeto)}.pdf`, 'application/pdf');
 }
 
 // ---------------------------------------------------------------------------

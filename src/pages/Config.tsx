@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Botao, Campo, DinheiroInput, NumeroInput, Painel, Segmentos, Selecao, Titulo } from '../components/ui';
 import { NOMES_FURO, type CorteModo, type TipoFuro } from '../domain/types';
 import { useApp } from '../store/app';
+import { FormEmpresa, FormFolgas, FormPadroesOrcamento, FormPreco } from '../components/FormsConfig';
 
 function Secao({ titulo, sub, children }: { titulo: string; sub?: string; children: React.ReactNode }) {
   return (
@@ -23,12 +24,16 @@ const ROTULO_CORTE: Record<CorteModo, string> = {
 export function Config() {
   const { config, setConfig, restaurarPadroes } = useApp();
   const s = config.servico;
-  const v = config.venda;
   const [confirmar, setConfirmar] = useState(false);
 
   return (
     <div className="mx-auto max-w-5xl p-4 sm:p-8">
-      <Titulo sub="Como o seu fornecedor cobra e quanto o marketplace fica de cada venda.">Configurações</Titulo>
+      <Titulo sub="Dados da marcenaria, como o fornecedor cobra e como você forma o preço.">Configurações</Titulo>
+
+      <Painel className="mb-6 p-5">
+        <h2 className="mb-4 font-cond text-lg font-semibold">Sua marcenaria</h2>
+        <FormEmpresa empresa={config.empresa} setConfig={setConfig} />
+      </Painel>
 
       <Secao titulo="Corte" sub="Serra e refilo afetam o plano de corte; o preço entra no custo.">
         <Campo label="Como o corte é cobrado">
@@ -49,13 +54,6 @@ export function Config() {
             <DinheiroInput ariaLabel={ROTULO_CORTE[s.corteModo]} centavos={s.cortePrecoCentavos} onChange={(x) => setConfig((c) => void (c.servico.cortePrecoCentavos = x))} />
           </Campo>
         )}
-        <div />
-        <Campo label="Espessura da serra (kerf)" unidade="mm" dica="Material perdido em cada corte.">
-          <NumeroInput ariaLabel="Kerf" valor={s.kerf} min={0} max={10} passo={0.5} onChange={(x) => setConfig((c) => void (c.servico.kerf = x))} />
-        </Campo>
-        <Campo label="Refilo" unidade="mm" dica="Margem descartada em cada borda da chapa.">
-          <NumeroInput ariaLabel="Refilo" valor={s.refilo} min={0} max={50} onChange={(x) => setConfig((c) => void (c.servico.refilo = x))} />
-        </Campo>
       </Secao>
 
       <Secao titulo="Chapa" sub="Como o custo da chapa entra no preço do móvel.">
@@ -102,23 +100,23 @@ export function Config() {
         </Campo>
       </Secao>
 
-      <Secao titulo="Venda no marketplace" sub="Use os valores do seu tipo de anúncio no Mercado Livre. O preço sugerido é calculado para sobrar a margem desejada depois de todas as taxas.">
-        <Campo label="Comissão" unidade="% do preço">
-          <NumeroInput ariaLabel="Comissão" valor={v.comissaoMarketplacePercent} min={0} max={99} passo={0.5} onChange={(x) => setConfig((c) => void (c.venda.comissaoMarketplacePercent = x))} />
-        </Campo>
-        <Campo label="Taxa fixa por venda">
-          <DinheiroInput ariaLabel="Taxa fixa" centavos={v.taxaFixaCentavos} onChange={(x) => setConfig((c) => void (c.venda.taxaFixaCentavos = x))} />
-        </Campo>
-        <Campo label="Frete pago por você">
-          <DinheiroInput ariaLabel="Frete" centavos={v.freteCentavos} onChange={(x) => setConfig((c) => void (c.venda.freteCentavos = x))} />
-        </Campo>
-        <Campo label="Imposto" unidade="% do preço">
-          <NumeroInput ariaLabel="Imposto" valor={v.impostoPercent} min={0} max={99} passo={0.5} onChange={(x) => setConfig((c) => void (c.venda.impostoPercent = x))} />
-        </Campo>
-        <Campo label="Margem desejada" unidade="% do preço">
-          <NumeroInput ariaLabel="Margem" valor={v.margemDesejadaPercent} min={0} max={99} onChange={(x) => setConfig((c) => void (c.venda.margemDesejadaPercent = x))} />
-        </Campo>
-      </Secao>
+      <Painel className="mb-6 p-5">
+        <h2 className="font-cond text-lg font-semibold">Preço para o cliente</h2>
+        <p className="mb-4 text-[13px] text-tinta-3">O preço sugerido de cada projeto é calculado para sobrar o lucro desejado depois do custo, do imposto e das taxas.</p>
+        <FormPreco config={config} setConfig={setConfig} />
+      </Painel>
+
+      <Painel className="mb-6 p-5">
+        <h2 className="font-cond text-lg font-semibold">Padrões do orçamento</h2>
+        <p className="mb-4 text-[13px] text-tinta-3">Vêm preenchidos em cada orçamento novo. Dá para mudar em cada projeto.</p>
+        <FormPadroesOrcamento config={config} setConfig={setConfig} />
+      </Painel>
+
+      <Painel className="mb-6 p-5">
+        <h2 className="font-cond text-lg font-semibold">Folgas e serra</h2>
+        <p className="mb-4 text-[13px] text-tinta-3">As folgas valem para os módulos que você criar daqui para frente.</p>
+        <FormFolgas config={config} setConfig={setConfig} />
+      </Painel>
 
       <div className="flex items-center gap-3">
         {confirmar ? (

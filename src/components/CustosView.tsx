@@ -85,19 +85,18 @@ export function CustosView({ custos, venda }: { custos: Custos; venda: ConfigVen
       </div>
 
       <aside className="rounded-lg border border-linha bg-painel p-4 self-start">
-        <div className="text-[13px] text-tinta-3">Preço sugerido para {fmtNum(venda.margemDesejadaPercent, 0)}% de margem</div>
+        <div className="text-[13px] text-tinta-3">Preço sugerido para {fmtNum(venda.margemDesejadaPercent, 0)}% de lucro</div>
         <div className="font-cond text-4xl font-semibold text-aco num">{sugerido === null ? '—' : brl(sugerido)}</div>
-        {sugerido === null && <p className="text-[13px] text-perigo mt-1">Comissão + imposto + margem passam de 100%. Ajuste em Configurações.</p>}
+        {sugerido === null && <p className="text-[13px] text-perigo mt-1">Imposto + comissão + cartão + margem passam de 100%. Ajuste em Configurações.</p>}
 
         <div className="mt-5 border-t border-linha pt-4">
-          <div className="mb-1 text-[13px] text-tinta-2">Se eu vender por</div>
+          <div className="mb-1 text-[13px] text-tinta-2">Se eu fechar por</div>
           <DinheiroInput ariaLabel="Preço de venda para simular" centavos={precoSim ?? sugerido ?? 0} onChange={setPrecoSim} />
           <dl className="mt-3 space-y-1 text-[13px] num">
             {[
-              ['Comissão do marketplace', -sim.comissaoCentavos],
               ['Imposto', -sim.impostoCentavos],
-              ['Taxa fixa', -sim.taxaFixaCentavos],
-              ['Frete', -sim.freteCentavos],
+              ['Comissão (arquiteto/vendedor)', -sim.comissaoCentavos],
+              ['Taxa do cartão', -sim.cartaoCentavos],
               ['Custo de produção', -sim.custoCentavos],
             ]
               .filter(([, v]) => v !== 0)
@@ -112,6 +111,10 @@ export function CustosView({ custos, venda }: { custos: Custos; venda: ConfigVen
               <dd className={cx(sim.lucroCentavos < 0 ? 'text-perigo' : 'text-ok')}>
                 {brl(sim.lucroCentavos)} <span className="font-normal text-tinta-3">({fmtNum(sim.margemPercent, 1)}%)</span>
               </dd>
+            </div>
+            <div className="flex justify-between text-tinta-3">
+              <dt>Markup sobre o custo</dt>
+              <dd>{fmtNum(sim.markup, 2)}×</dd>
             </div>
           </dl>
           {precoSim !== null && (

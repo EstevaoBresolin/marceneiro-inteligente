@@ -156,8 +156,8 @@ export const idLocal = (id: string) => (id.includes(SEP) ? id.slice(id.indexOf(S
 export type Lado = 'direita' | 'esquerda' | 'cima' | 'baixo';
 
 /** parâmetros do novo módulo herdando medidas do vizinho, quando fizer sentido */
-export function parametrosHerdados(novo: Template, vizinho: ModuloMontado | undefined, lado: Lado): Params {
-  const p: Params = Object.fromEntries(novo.parametros.map((d) => [d.id, d.padrao]));
+export function parametrosHerdados(novo: Template, vizinho: ModuloMontado | undefined, lado: Lado, base?: Params): Params {
+  const p: Params = base ? { ...base } : Object.fromEntries(novo.parametros.map((d) => [d.id, d.padrao]));
   if (!vizinho) return p;
   const v = vizinho.modulo.parametros;
   const herdar = lado === 'direita' || lado === 'esquerda' ? ['altura', 'profundidade'] : ['largura', 'profundidade'];

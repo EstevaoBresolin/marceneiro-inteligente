@@ -5,7 +5,8 @@ export type Rota =
   | { tela: 'editor'; id: string }
   | { tela: 'corte' }
   | { tela: 'catalogo' }
-  | { tela: 'config' };
+  | { tela: 'config' }
+  | { tela: 'admin' };
 
 export function lerRota(hash = window.location.hash): Rota {
   const partes = hash.replace(/^#\/?/, '').split('/');
@@ -18,6 +19,8 @@ export function lerRota(hash = window.location.hash): Rota {
       return { tela: 'catalogo' };
     case 'config':
       return { tela: 'config' };
+    case 'admin':
+      return { tela: 'admin' };
     default:
       return { tela: 'projetos' };
   }

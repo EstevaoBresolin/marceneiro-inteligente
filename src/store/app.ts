@@ -4,8 +4,9 @@ import { CATALOGO_PADRAO, CONFIG_PADRAO } from '../domain/defaults';
 import { novoId } from '../domain/money';
 import type { Catalogo, Config, Projeto } from '../domain/types';
 import { db, gravarKv, lerKv } from '../lib/db';
-import { padroes, templatePorId } from '../templates';
+import { parametrosIniciais, templatePorId } from '../templates';
 import { nomeCurto, normalizarProjeto } from '../domain/composicao';
+import { rastrear } from '../lib/telemetria';
 
 type AppState = {
   carregado: boolean;
@@ -93,7 +94,7 @@ export const useApp = create<AppState>()(
 
     novoProjeto: (templateId) => {
       const t = templatePorId(templateId);
-      const params = padroes(t);
+      const params = parametrosIniciais(t, get().config.padroes);
       const p: Projeto = {
         id: novoId(),
         nome: t.id === 'livre' ? 'Lista de peças' : t.nome,
@@ -108,13 +109,15 @@ export const useApp = create<AppState>()(
         atualizadoEm: Date.now(),
       };
       get().salvarProjeto(p);
+      rastrear('projeto_criado', { modelo: t.id });
       return p;
     },
 
     duplicarProjeto: (id) => {
       const orig = get().projetos.find((p) => p.id === id);
       if (!orig) return;
-      get().salvarProjeto({ ...structuredClone(orig), id: novoId(), nome: `${orig.nome} (cópia)` });
+      get().salvarProjeto({ ...structuredClone(orig), id: novoId(), nome: `${orig.nome} (cópia)`, orcamento: undefined });
+      rastrear('projeto_duplicado');
     },
 
     removerProjeto: (id) => {

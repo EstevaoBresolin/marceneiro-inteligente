@@ -1,4 +1,8 @@
 import { useEffect } from 'react';
+import { BotaoFeedback } from './components/Feedback';
+import { Onboarding } from './components/Onboarding';
+import { Admin } from './pages/Admin';
+import { configurarIdentidade, iniciarTelemetria, rastrear } from './lib/telemetria';
 import { cx } from './components/ui';
 import { useRota } from './lib/router';
 import { Catalogo } from './pages/Catalogo';
@@ -23,9 +27,25 @@ function Marca() {
 export default function App() {
   const rota = useRota();
   const carregar = useApp((s) => s.carregar);
+  const carregado = useApp((s) => s.carregado);
+  const onboardingConcluido = useApp((s) => s.config.onboardingConcluido);
+  const ehAdmin = rota.tela === 'admin';
   useEffect(() => {
     void carregar();
+    // pede ao navegador para não apagar os projetos quando faltar espaço
+    void navigator.storage?.persist?.().catch(() => {});
   }, [carregar]);
+  useEffect(() => {
+    if (!carregado || ehAdmin) return;
+    configurarIdentidade(() => {
+      const e = useApp.getState().config.empresa;
+      return { empresa: e.nome, responsavel: e.responsavel, telefone: e.telefone, cidade: e.cidade };
+    });
+    iniciarTelemetria();
+  }, [carregado, ehAdmin]);
+  useEffect(() => {
+    if (carregado && !ehAdmin) rastrear('tela', { tela: rota.tela });
+  }, [rota.tela, carregado, ehAdmin]);
 
   const links: [string, string, boolean][] = [
     ['#/projetos', 'Projetos', rota.tela === 'projetos' || rota.tela === 'editor'],
@@ -48,12 +68,15 @@ export default function App() {
             </a>
           ))}
         </nav>
+        {!ehAdmin && <BotaoFeedback />}
       </header>
       {rota.tela === 'projetos' && <Projetos />}
       {rota.tela === 'editor' && <Editor key={rota.id} id={rota.id} />}
       {rota.tela === 'corte' && <CorteAvulso />}
       {rota.tela === 'catalogo' && <Catalogo />}
       {rota.tela === 'config' && <Config />}
+      {rota.tela === 'admin' && <Admin />}
+      {carregado && !onboardingConcluido && !ehAdmin && <Onboarding />}
     </div>
   );
 }

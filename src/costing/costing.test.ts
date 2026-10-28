@@ -3,19 +3,20 @@ import { CATALOGO_PADRAO, CONFIG_PADRAO } from '../domain/defaults';
 import type { Config, Peca } from '../domain/types';
 import { planejarCorte } from '../optimizer';
 import { calcularCustos } from './calcularCustos';
-import { precoSugerido, simularVenda } from './precoSugerido';
+import { arredondarPreco, precoSugerido, simularVenda } from './precoSugerido';
 
-const venda = { comissaoMarketplacePercent: 16, taxaFixaCentavos: 600, freteCentavos: 0, impostoPercent: 4, margemDesejadaPercent: 20 };
+const venda = { ...CONFIG_PADRAO.venda, margemDesejadaPercent: 20, impostoPercent: 6, comissaoPercent: 10, taxaCartaoPercent: 4 };
 
 describe('preço sugerido', () => {
   it('resolve algebricamente: a margem real bate com a desejada', () => {
     const custo = 5000;
     const p = precoSugerido(custo, venda)!;
-    // (5000 + 600) / (1 − 0,40) = 9333,33 → 9334
-    expect(p).toBe(9334);
+    // 5000 / (1 − 0,40) = 8333,33 → 8334
+    expect(p).toBe(8334);
     const s = simularVenda(p, custo, venda);
     expect(s.margemPercent).toBeGreaterThanOrEqual(19.99);
     expect(s.margemPercent).toBeLessThan(20.05);
+    expect(s.markup).toBeCloseTo(1.667, 2);
   });
 
   it('percentuais ≥ 100% → impossível', () => {
@@ -25,6 +26,12 @@ describe('preço sugerido', () => {
   it('simulação mostra prejuízo', () => {
     const s = simularVenda(1000, 2000, venda);
     expect(s.lucroCentavos).toBeLessThan(0);
+  });
+
+  it('arredonda para valor de orçamento', () => {
+    expect(arredondarPreco(83_334)).toBe(84_000);
+    expect(arredondarPreco(412_345)).toBe(415_000);
+    expect(arredondarPreco(1_234_567)).toBe(1_240_000);
   });
 });
 

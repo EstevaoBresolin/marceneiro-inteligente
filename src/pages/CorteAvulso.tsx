@@ -6,10 +6,12 @@ import { Abas, Botao, Campo, NumeroInput, Painel, Selecao, Titulo } from '../com
 import { calcularCustos } from '../costing/calcularCustos';
 import { PlanoCorteView } from '../cutplan/PlanoCorteView';
 import type { Peca } from '../domain/types';
-const exportar = () => import('../export/exportar');
+import { rastrear } from '../lib/telemetria';
 import { parsePecas } from '../lib/parsePecas';
 import { usePlanoCorte } from '../lib/usePlanoCorte';
 import { useApp } from '../store/app';
+
+const exportar = () => import('../export/exportar');
 
 const EXEMPLO = '600x250x10\n400x120x4';
 const CHAVE = 'corte-avulso';
@@ -118,7 +120,10 @@ export function CorteAvulso() {
             <NumeroInput ariaLabel="Horas de mão de obra" valor={s.horas} min={0} passo={0.5} onChange={(v) => setS({ ...s, horas: v })} />
           </Campo>
           <div className="flex flex-wrap gap-2 border-t border-linha pt-4">
-            <Botao onClick={async () => (await exportar()).pdfPlanoCorte({ projeto: 'Plano de corte avulso', plano, pecas, fitas: catalogo.fitas, lote: 1 })} disabled={!pecas.length}>
+            <Botao onClick={async () => {
+              rastrear('exportou', { tipo: 'corte', avulso: true });
+              await (await exportar()).pdfPlanoCorte({ projeto: 'Plano de corte avulso', plano, pecas, fitas: catalogo.fitas, lote: 1 });
+            }} disabled={!pecas.length}>
               <FileDown className="size-4" /> PDF
             </Botao>
             <Botao onClick={async () => (await exportar()).csvListaCorte('corte-avulso', pecas, catalogo.chapas, catalogo.fitas, 1)} disabled={!pecas.length}>

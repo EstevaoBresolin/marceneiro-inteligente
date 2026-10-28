@@ -1,3 +1,5 @@
+import { USINAGEM_PADRAO } from './usinagem';
+import { CSV_PADRAO } from '../export/maquina';
 import type { Catalogo, Config } from './types';
 
 // Valores de EXEMPLO para começar — ajuste em Catálogo e Configurações.
@@ -51,7 +53,12 @@ export const CONFIG_PADRAO: Config = {
     observacoes: 'Instalação inclusa. Medidas confirmadas no local antes da produção.',
   },
   empresa: { nome: '', responsavel: '', telefone: '', email: '', documento: '', endereco: '', cidade: '', logo: null },
-  padroes: { folgaPorta: 2, recuoPrateleira: 20 },
+  padroes: { folgaPorta: 2, recuoPrateleira: 20, folgaCorredica: 12.5 },
+  usinagem: structuredClone(USINAGEM_PADRAO),
+  ultimoBackup: null,
+  termosAceitosEm: null,
+  enviarUso: true,
+  exportacaoCsv: structuredClone(CSV_PADRAO),
   onboardingConcluido: false,
   proximoOrcamento: 1,
 };

@@ -59,7 +59,7 @@ export function OrcamentoView({ projeto, orcamento: o, montado, custos, config, 
     try {
       const { baixarOrcamento } = await import('../export/orcamentoCliente');
       await baixarOrcamento(await dados());
-      rastrear('orcamento_gerado', { totalCentavos: total, margem: Math.round(sim.margemPercent), modulos: montado.modulos.length });
+      rastrear('orcamento_gerado', { modulos: montado.modulos.length });
     } finally {
       setGerando(false);
     }

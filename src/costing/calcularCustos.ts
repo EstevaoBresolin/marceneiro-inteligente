@@ -49,22 +49,25 @@ export function calcularCustos(e: EntradaCustos): Custos {
     const chapa = catalogo.chapas.find((c) => c.id === g.chapa.id);
     if (!chapa || g.chapas.length === 0) continue;
     const n = g.chapas.length;
-    const areaChapa = chapa.largura * chapa.altura;
+    // o plano pode ter escolhido outro tamanho do mesmo material
+    const areaChapa = g.chapa.largura * g.chapa.altura;
+    const preco = g.chapa.precoCentavos ?? chapa.precoCentavos;
+    const tam = `${g.chapa.largura}×${g.chapa.altura}`;
     const areaPecas = g.chapas.reduce((acc, c) => acc + c.areaPecas, 0);
     if (s.chapaCobranca === 'inteiras') {
       linhas.push({
         grupo: 'Chapa',
         descricao: chapa.nome,
-        conta: `${n} chapa(s) inteira(s) × ${brl(chapa.precoCentavos)}`,
-        totalCentavos: n * chapa.precoCentavos,
+        conta: `${n} chapa(s) inteira(s) de ${tam} × ${brl(preco)}`,
+        totalCentavos: n * preco,
       });
     } else {
       const fracao = (areaPecas / areaChapa) * (1 + s.perdaChapaPercent / 100);
       linhas.push({
         grupo: 'Chapa',
         descricao: chapa.nome,
-        conta: `${fmtNum(areaPecas / 1e6, 3)} m² de peças ÷ ${fmtNum(areaChapa / 1e6, 3)} m² da chapa + ${s.perdaChapaPercent}% de perda = ${fmtNum(fracao, 3)} chapa × ${brl(chapa.precoCentavos)} (plano usa ${n} chapa(s))`,
-        totalCentavos: Math.round(fracao * chapa.precoCentavos),
+        conta: `${fmtNum(areaPecas / 1e6, 3)} m² de peças ÷ ${fmtNum(areaChapa / 1e6, 3)} m² da chapa ${tam} + ${s.perdaChapaPercent}% de perda = ${fmtNum(fracao, 3)} chapa × ${brl(preco)} (plano usa ${n} chapa(s))`,
+        totalCentavos: Math.round(fracao * preco),
       });
     }
   }

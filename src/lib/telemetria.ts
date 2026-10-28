@@ -57,10 +57,15 @@ export function configurarIdentidade(fn: typeof obterEmpresa) {
 export const identidade = (): Identidade => ({ instalacao: idInstalacao(), versao: VERSAO, ...obterEmpresa() });
 
 let fila: Evento[] = temJanela ? ler<Evento[]>(CHAVE_FILA, []) : [];
+let permitido: () => boolean = () => true;
+/** o app informa se a marcenaria deixou enviar registros de uso */
+export function configurarPermissao(fn: () => boolean) {
+  permitido = fn;
+}
 let enviando = false;
 
 export function rastrear(tipo: string, dados?: Record<string, unknown>) {
-  if (!temJanela) return;
+  if (!temJanela || !permitido()) return;
   fila.push({ id: novoId(), tipo, em: Date.now(), dados, tela: location.hash || '#/' });
   if (fila.length > LIMITE_FILA) fila = fila.slice(-LIMITE_FILA);
   gravar(CHAVE_FILA, fila);
@@ -68,6 +73,11 @@ export function rastrear(tipo: string, dados?: Record<string, unknown>) {
 
 async function enviar(usarBeacon = false) {
   if (!temJanela || enviando || !fila.length) return;
+  if (!permitido()) {
+    fila = [];
+    gravar(CHAVE_FILA, fila);
+    return;
+  }
   const lote = fila.slice(0, 100);
   const corpo = JSON.stringify({ ...identidade(), eventos: lote });
   if (usarBeacon && navigator.sendBeacon) {

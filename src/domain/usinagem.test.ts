@@ -57,3 +57,20 @@ describe('furação calculada', () => {
     expect(n.has('m1:espelho-1')).toBe(false);
   });
 });
+
+describe('furação configurável', () => {
+  it('outra marcenaria: cavilha a 50 mm da ponta e caneco a 21 mm da borda', async () => {
+    const { USINAGEM_PADRAO } = await import('./usinagem');
+    const u = structuredClone(USINAGEM_PADRAO);
+    u.cavilha.daPonta = 50;
+    u.caneco.daBorda = 21;
+    u.caneco.daPonta = 80;
+    const m = montarProjeto(proj('armario-banheiro', padroes(armarioBanheiro)), ctx);
+    const fs = calcularFuracao(m.pecas, u);
+    const tampo = fs.get('m1:tampo')!.filter((f) => f.tipo === 'cavilha');
+    expect(tampo.map((f) => f.y).sort((a, b) => a - b)).toEqual([50, 50, 97, 97]);
+    const can = fs.get('m1:porta-1')!.filter((f) => f.tipo === 'caneco');
+    expect(can.map((f) => f.x)).toEqual([80, 516]);
+    expect(can.every((f) => f.y === 21)).toBe(true);
+  });
+});

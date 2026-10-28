@@ -3,13 +3,13 @@ import { useMemo, useState } from 'react';
 import { assinaturaDesenho } from '../cutplan/desenho';
 import { DesenhoPeca } from '../cutplan/DesenhoPeca';
 import type { Catalogo, Peca } from '../domain/types';
-import { calcularFuracao, NOMES_USINAGEM, type Furo, type TipoUsinagem } from '../domain/usinagem';
+import { calcularFuracao, NOMES_USINAGEM, type Furo, type PadroesUsinagem, type TipoUsinagem } from '../domain/usinagem';
 import { COR_FURO } from '../cutplan/desenho';
 import { Botao } from './ui';
 
-export function useItensDesenho(pecas: Peca[], numeros: Map<string, string>) {
+export function useItensDesenho(pecas: Peca[], numeros: Map<string, string>, usinagem?: PadroesUsinagem) {
   return useMemo(() => {
-    const furos = calcularFuracao(pecas);
+    const furos = calcularFuracao(pecas, usinagem);
     // peças idênticas (mesma medida, fita e furação) viram um desenho só: "P5, P6"
     const grupos = new Map<string, { peca: Peca; nums: string[]; quantidade: number; furos: Furo[] }>();
     for (const p of pecas) {
@@ -23,11 +23,11 @@ export function useItensDesenho(pecas: Peca[], numeros: Map<string, string>) {
       } else grupos.set(k, { peca: p, nums: [numeros.get(p.id) ?? ''], quantidade: p.quantidade, furos: fs });
     }
     return [...grupos.values()].map(({ nums, ...g }) => ({ ...g, numero: nums.join(', ') }));
-  }, [pecas, numeros]);
+  }, [pecas, numeros, usinagem]);
 }
 
-export function DesenhosView({ pecas, numeros, catalogo, projeto }: { pecas: Peca[]; numeros: Map<string, string>; catalogo: Catalogo; projeto: string }) {
-  const itens = useItensDesenho(pecas, numeros);
+export function DesenhosView({ pecas, numeros, catalogo, projeto, usinagem }: { pecas: Peca[]; numeros: Map<string, string>; catalogo: Catalogo; projeto: string; usinagem?: PadroesUsinagem }) {
+  const itens = useItensDesenho(pecas, numeros, usinagem);
   const [gerando, setGerando] = useState(false);
 
   return (

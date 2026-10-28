@@ -39,6 +39,23 @@ export const NOMES_USINAGEM: Record<TipoUsinagem, string> = {
   puxador: 'Puxador',
 };
 
+/** distâncias e diâmetros da furação: cada marcenaria configura os seus */
+export type PadroesUsinagem = {
+  cavilha: { diametro: number; profFace: number; profTopo: number; daPonta: number; espacamentoMax: number };
+  caneco: { diametro: number; profundidade: number; daBorda: number; daPonta: number };
+  calco: { diametro: number; profundidade: number; daFrente: number; afastamento: number };
+  pino: { diametro: number; profundidade: number; daFrente: number; abaixo: number };
+  puxador: { diametro: number; daBorda: number };
+};
+
+export const USINAGEM_PADRAO: PadroesUsinagem = {
+  cavilha: { diametro: 8, profFace: 12, profTopo: 25, daPonta: 37, espacamentoMax: 320 },
+  caneco: { diametro: 35, profundidade: 12.5, daBorda: 22.5, daPonta: 100 },
+  calco: { diametro: 5, profundidade: 10, daFrente: 37, afastamento: 16 },
+  pino: { diametro: 5, profundidade: 10, daFrente: 37, abaixo: 6 },
+  puxador: { diametro: 5, daBorda: 40 },
+};
+
 type Eixos = { t: number; c: number; l: number };
 type Lim = { min: Vec3; max: Vec3 };
 
@@ -66,20 +83,21 @@ export function paraPeca(p: Peca, e: Eixos, w: Vec3): { x: number; y: number } {
 }
 
 /** posições ao longo de uma junta de comprimento len */
-function posicoesCavilha(lo: number, hi: number): number[] {
+function posicoesCavilha(lo: number, hi: number, daPonta = 37, espacamentoMax = 320): number[] {
   const len = hi - lo;
-  if (len < 100) return [Math.round((lo + hi) / 2)];
-  if (len < 180) return [Math.round(lo + len / 4), Math.round(hi - len / 4)];
-  const pts = [lo + 37, hi - 37];
-  const meio = hi - 37 - (lo + 37);
-  const extras = Math.floor(meio / 320);
-  for (let k = 1; k <= extras; k++) pts.push(lo + 37 + (meio * k) / (extras + 1));
+  if (len < 60) return [Math.round((lo + hi) / 2)];
+  // junta curta: não cabe a distância configurada das duas pontas
+  if (len < 2 * daPonta + 40) return [Math.round(lo + len / 4), Math.round(hi - len / 4)];
+  const pts = [lo + daPonta, hi - daPonta];
+  const meio = hi - daPonta - (lo + daPonta);
+  const extras = Math.floor(meio / Math.max(60, espacamentoMax));
+  for (let k = 1; k <= extras; k++) pts.push(lo + daPonta + (meio * k) / (extras + 1));
   return pts.map(Math.round).sort((a, b) => a - b);
 }
 
 const ehPainel = (p: Peca) => !!p.box3d && !p.somente3d && p.papel !== 'porta' && p.papel !== 'espelho' && p.papel !== 'fundo' && Math.min(...p.box3d.size) >= 8;
 
-export function calcularFuracao(pecas: Peca[]): Map<string, Furo[]> {
+export function calcularFuracao(pecas: Peca[], u: PadroesUsinagem = USINAGEM_PADRAO): Map<string, Furo[]> {
   const furos = new Map<string, Furo[]>();
   const add = (id: string, f: Furo) => {
     const l = furos.get(id) ?? [];
@@ -119,16 +137,16 @@ export function calcularFuracao(pecas: Peca[]): Map<string, Furo[]> {
         const meioEsp = (lBorda.min[eBorda.t] + lBorda.max[eBorda.t]) / 2;
         const lFace = L.get(face.id)!;
         const ladoFace: 1 | -1 = (lBorda.min[k] + lBorda.max[k]) / 2 > (lFace.min[k] + lFace.max[k]) / 2 ? 1 : -1;
-        for (const pos of posicoesCavilha(lo, hi)) {
+        for (const pos of posicoesCavilha(lo, hi, u.cavilha.daPonta, u.cavilha.espacamentoMax)) {
           const w: Vec3 = [0, 0, 0];
           w[k] = plano;
           w[ao] = pos;
           w[eBorda.t] = meioEsp;
           const pf = paraPeca(face, E.get(face.id)!, w);
-          add(face.id, { tipo: 'cavilha', onde: 'face', ...pf, lado: ladoFace, diametro: 8, profundidade: 12 });
+          add(face.id, { tipo: 'cavilha', onde: 'face', ...pf, lado: ladoFace, diametro: u.cavilha.diametro, profundidade: u.cavilha.profFace });
           const pb = paraPeca(borda, eBorda, w);
           const bordaNome: Borda = k === eBorda.c ? (pb.x < 1 ? 'l1' : 'l2') : pb.y < 1 ? 'c1' : 'c2';
-          add(borda.id, { tipo: 'cavilha', onde: 'topo', ...pb, borda: bordaNome, diametro: 8, profundidade: 25 });
+          add(borda.id, { tipo: 'cavilha', onde: 'topo', ...pb, borda: bordaNome, diametro: u.cavilha.diametro, profundidade: u.cavilha.profTopo });
         }
       }
     }
@@ -141,10 +159,11 @@ export function calcularFuracao(pecas: Peca[]): Map<string, Furo[]> {
     const lp = L.get(porta.id)!;
     const e = E.get(porta.id)!;
     const comp = porta.comprimento;
-    const alturas = n === 1 ? [comp / 2] : Array.from({ length: n }, (_, k) => 100 + ((comp - 200) * k) / (n - 1));
+    const dp = Math.min(u.caneco.daPonta, comp / 3);
+    const alturas = n === 1 ? [comp / 2] : Array.from({ length: n }, (_, k) => dp + ((comp - 2 * dp) * k) / (n - 1));
     const yDob = paraPeca(porta, e, [d.x, lp.min[1], lp.max[2]]).y;
-    const yCaneco = yDob < 1 ? 22.5 : porta.largura - 22.5;
-    for (const x of alturas) add(porta.id, { tipo: 'caneco', onde: 'face', x, y: yCaneco, lado: -1, diametro: 35, profundidade: 12.5 });
+    const yCaneco = yDob < 1 ? u.caneco.daBorda : porta.largura - u.caneco.daBorda;
+    for (const x of alturas) add(porta.id, { tipo: 'caneco', onde: 'face', x, y: yCaneco, lado: -1, diametro: u.caneco.diametro, profundidade: u.caneco.profundidade });
 
     // calço na lateral do lado da dobradiça
     const lateral = paineis.find((q) => {
@@ -158,9 +177,9 @@ export function calcularFuracao(pecas: Peca[]): Map<string, Furo[]> {
       const xFace = d.sinal < 0 ? lq.max[0] : lq.min[0]; // face voltada para dentro
       for (const x of alturas) {
         const yMundo = lp.min[1] + x; // a porta tem o comprimento na vertical
-        for (const dy of [-16, 16]) {
-          const pt = paraPeca(lateral, el, [xFace, yMundo + dy, lq.max[2] - 37]);
-          add(lateral.id, { tipo: 'calco', onde: 'face', ...pt, lado: d.sinal < 0 ? 1 : -1, diametro: 5, profundidade: 10 });
+        for (const dy of [-u.calco.afastamento, u.calco.afastamento]) {
+          const pt = paraPeca(lateral, el, [xFace, yMundo + dy, lq.max[2] - u.calco.daFrente]);
+          add(lateral.id, { tipo: 'calco', onde: 'face', ...pt, lado: d.sinal < 0 ? 1 : -1, diametro: u.calco.diametro, profundidade: u.calco.profundidade });
         }
       }
     }
@@ -179,10 +198,10 @@ export function calcularFuracao(pecas: Peca[]): Map<string, Furo[]> {
       if (!lado || lv.min[1] > ls.min[1] || lv.max[1] < ls.max[1]) continue;
       const xFace = lado < 0 ? lv.min[0] : lv.max[0];
       const prof = ls.max[2] - ls.min[2];
-      const zs = prof < 120 ? [(ls.min[2] + ls.max[2]) / 2] : [ls.max[2] - 37, ls.min[2] + 37];
+      const zs = prof < u.pino.daFrente * 3.2 ? [(ls.min[2] + ls.max[2]) / 2] : [ls.max[2] - u.pino.daFrente, ls.min[2] + u.pino.daFrente];
       for (const z of zs) {
-        const pt = paraPeca(viz, E.get(viz.id)!, [xFace, ls.min[1] - 6, z]);
-        add(viz.id, { tipo: 'pino', onde: 'face', ...pt, lado: lado < 0 ? -1 : 1, diametro: 5, profundidade: 10 });
+        const pt = paraPeca(viz, E.get(viz.id)!, [xFace, ls.min[1] - u.pino.abaixo, z]);
+        add(viz.id, { tipo: 'pino', onde: 'face', ...pt, lado: lado < 0 ? -1 : 1, diametro: u.pino.diametro, profundidade: u.pino.profundidade });
       }
     }
   }
@@ -196,8 +215,8 @@ export function calcularFuracao(pecas: Peca[]): Map<string, Furo[]> {
       const e = E.get(p.id)!;
       const lp = L.get(p.id)!;
       const yDob = paraPeca(p, e, [d.x, lp.min[1], lp.max[2]]).y;
-      add(p.id, { tipo: 'puxador', onde: 'face', x: p.comprimento / 2, y: yDob < 1 ? p.largura - 40 : 40, lado: 1, diametro: 5, profundidade: 'passante' });
-    } else add(p.id, { tipo: 'puxador', onde: 'face', x: p.comprimento / 2, y: p.largura / 2, lado: 1, diametro: 5, profundidade: 'passante' });
+      add(p.id, { tipo: 'puxador', onde: 'face', x: p.comprimento / 2, y: yDob < 1 ? p.largura - u.puxador.daBorda : u.puxador.daBorda, lado: 1, diametro: u.puxador.diametro, profundidade: 'passante' });
+    } else add(p.id, { tipo: 'puxador', onde: 'face', x: p.comprimento / 2, y: p.largura / 2, lado: 1, diametro: u.puxador.diametro, profundidade: 'passante' });
   }
 
   return furos;

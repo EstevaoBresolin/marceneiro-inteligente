@@ -181,12 +181,94 @@ export function FormFolgas({ config, setConfig }: { config: Config; setConfig: S
       <Campo label="Recuo da prateleira" unidade="mm" dica="Quanto a prateleira solta fica para trás da frente.">
         <NumeroInput ariaLabel="Recuo da prateleira" valor={pd.recuoPrateleira} min={0} max={100} passo={5} onChange={(x) => setConfig((c) => void (c.padroes.recuoPrateleira = x))} />
       </Campo>
+      <Campo label="Folga da corrediça" unidade="mm" dica="Por lado, entre a gaveta e a lateral do móvel.">
+        <NumeroInput ariaLabel="Folga da corrediça" valor={pd.folgaCorredica ?? 12.5} min={0} max={30} passo={0.5} onChange={(x) => setConfig((c) => void (c.padroes.folgaCorredica = x))} />
+      </Campo>
       <Campo label="Espessura da serra" unidade="mm" dica="Material que some em cada corte.">
         <NumeroInput ariaLabel="Kerf" valor={s.kerf} min={0} max={10} passo={0.5} onChange={(x) => setConfig((c) => void (c.servico.kerf = x))} />
       </Campo>
       <Campo label="Refilo" unidade="mm" dica="Margem descartada em cada borda da chapa.">
         <NumeroInput ariaLabel="Refilo" valor={s.refilo} min={0} max={50} onChange={(x) => setConfig((c) => void (c.servico.refilo = x))} />
       </Campo>
+    </div>
+  );
+}
+
+type GrupoUsinagem = keyof Config['usinagem'];
+const CAMPOS_USINAGEM: { grupo: GrupoUsinagem; titulo: string; campos: { k: string; label: string; dica?: string }[] }[] = [
+  {
+    grupo: 'cavilha',
+    titulo: 'Cavilha',
+    campos: [
+      { k: 'diametro', label: 'Diâmetro' },
+      { k: 'profFace', label: 'Profundidade na face' },
+      { k: 'profTopo', label: 'Profundidade no topo' },
+      { k: 'daPonta', label: 'Distância da ponta', dica: 'Da borda da junta até a primeira cavilha.' },
+      { k: 'espacamentoMax', label: 'Espaço máximo entre cavilhas', dica: 'Juntas longas ganham cavilhas no meio.' },
+    ],
+  },
+  {
+    grupo: 'caneco',
+    titulo: 'Caneco da dobradiça',
+    campos: [
+      { k: 'diametro', label: 'Diâmetro' },
+      { k: 'profundidade', label: 'Profundidade' },
+      { k: 'daBorda', label: 'Distância da borda', dica: 'Da borda da porta até o centro do caneco.' },
+      { k: 'daPonta', label: 'Distância das pontas', dica: 'Do topo e da base da porta até a dobradiça.' },
+    ],
+  },
+  {
+    grupo: 'calco',
+    titulo: 'Calço da dobradiça (na lateral)',
+    campos: [
+      { k: 'diametro', label: 'Diâmetro' },
+      { k: 'profundidade', label: 'Profundidade' },
+      { k: 'daFrente', label: 'Distância da frente' },
+      { k: 'afastamento', label: 'Meia distância entre os 2 furos', dica: '16 = furos 32 mm um do outro.' },
+    ],
+  },
+  {
+    grupo: 'pino',
+    titulo: 'Pino de prateleira',
+    campos: [
+      { k: 'diametro', label: 'Diâmetro' },
+      { k: 'profundidade', label: 'Profundidade' },
+      { k: 'daFrente', label: 'Distância da frente e de trás' },
+      { k: 'abaixo', label: 'Centro abaixo da prateleira' },
+    ],
+  },
+  {
+    grupo: 'puxador',
+    titulo: 'Puxador',
+    campos: [
+      { k: 'diametro', label: 'Diâmetro do furo' },
+      { k: 'daBorda', label: 'Distância da borda de abrir' },
+    ],
+  },
+];
+
+export function FormUsinagem({ config, setConfig }: { config: Config; setConfig: SetConfig }) {
+  return (
+    <div className="grid gap-5 lg:grid-cols-2">
+      {CAMPOS_USINAGEM.map((g) => (
+        <fieldset key={g.grupo} className="rounded-md border border-linha p-3">
+          <legend className="px-1 text-[13px] font-semibold">{g.titulo}</legend>
+          <div className="grid grid-cols-2 gap-3">
+            {g.campos.map((c) => (
+              <Campo key={c.k} label={c.label} unidade="mm" dica={c.dica}>
+                <NumeroInput
+                  ariaLabel={`${g.titulo}: ${c.label}`}
+                  valor={(config.usinagem[g.grupo] as Record<string, number>)[c.k]}
+                  min={0}
+                  max={2000}
+                  passo={0.5}
+                  onChange={(v) => setConfig((cf) => void ((cf.usinagem[g.grupo] as Record<string, number>)[c.k] = v))}
+                />
+              </Campo>
+            ))}
+          </div>
+        </fieldset>
+      ))}
     </div>
   );
 }

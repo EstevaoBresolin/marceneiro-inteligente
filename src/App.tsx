@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { BotaoFeedback } from './components/Feedback';
 import { Onboarding } from './components/Onboarding';
 import { Admin } from './pages/Admin';
-import { configurarIdentidade, iniciarTelemetria, rastrear } from './lib/telemetria';
+import { Producao } from './pages/Producao';
+import { Termos } from './pages/Termos';
+import { configurarIdentidade, configurarPermissao, iniciarTelemetria, rastrear } from './lib/telemetria';
 import { cx } from './components/ui';
 import { useRota } from './lib/router';
 import { Catalogo } from './pages/Catalogo';
@@ -29,6 +31,8 @@ export default function App() {
   const carregar = useApp((s) => s.carregar);
   const carregado = useApp((s) => s.carregado);
   const onboardingConcluido = useApp((s) => s.config.onboardingConcluido);
+  const termosAceitos = useApp((s) => !!s.config.termosAceitosEm);
+  const setConfig = useApp((s) => s.setConfig);
   const ehAdmin = rota.tela === 'admin';
   useEffect(() => {
     void carregar();
@@ -37,6 +41,7 @@ export default function App() {
   }, [carregar]);
   useEffect(() => {
     if (!carregado || ehAdmin) return;
+    configurarPermissao(() => useApp.getState().config.enviarUso !== false);
     configurarIdentidade(() => {
       const e = useApp.getState().config.empresa;
       return { empresa: e.nome, responsavel: e.responsavel, telefone: e.telefone, cidade: e.cidade };
@@ -49,7 +54,8 @@ export default function App() {
 
   const links: [string, string, boolean][] = [
     ['#/projetos', 'Projetos', rota.tela === 'projetos' || rota.tela === 'editor'],
-    ['#/corte', 'Plano de corte avulso', rota.tela === 'corte'],
+    ['#/producao', 'Corte da semana', rota.tela === 'producao'],
+    ['#/corte', 'Corte avulso', rota.tela === 'corte'],
     ['#/catalogo', 'Catálogo', rota.tela === 'catalogo'],
     ['#/config', 'Configurações', rota.tela === 'config'],
   ];
@@ -70,12 +76,25 @@ export default function App() {
         </nav>
         {!ehAdmin && <BotaoFeedback />}
       </header>
+      {carregado && onboardingConcluido && !termosAceitos && !ehAdmin && rota.tela !== 'termos' && (
+        <div className="flex flex-wrap items-center justify-center gap-3 border-b border-[#e7c9a6] bg-[#fbf3ea] px-4 py-2 text-[13px]">
+          <span>Este sistema está em teste. Leia e aceite os termos: os projetos ficam neste computador e recebemos só registros simples de uso.</span>
+          <a href="#/termos" className="font-medium text-aco hover:underline">
+            Ler termos
+          </a>
+          <button className="rounded-md bg-aco px-2.5 py-1 font-medium text-white" onClick={() => setConfig((c) => void (c.termosAceitosEm = Date.now()))}>
+            Aceito
+          </button>
+        </div>
+      )}
       {rota.tela === 'projetos' && <Projetos />}
       {rota.tela === 'editor' && <Editor key={rota.id} id={rota.id} />}
       {rota.tela === 'corte' && <CorteAvulso />}
       {rota.tela === 'catalogo' && <Catalogo />}
       {rota.tela === 'config' && <Config />}
       {rota.tela === 'admin' && <Admin />}
+      {rota.tela === 'producao' && <Producao />}
+      {rota.tela === 'termos' && <Termos />}
       {carregado && !onboardingConcluido && !ehAdmin && <Onboarding />}
     </div>
   );

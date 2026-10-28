@@ -74,7 +74,7 @@ export function PlanoCorteView({ plano, pecas, fitas, calculando }: { plano: Pla
         return (
           <section key={g.chapa.id} className={calculando ? 'opacity-60 transition-opacity' : ''}>
             <h3 className="font-cond text-lg font-semibold">
-              {g.chapa.nome} <span className="font-sans text-[13px] font-normal text-tinta-3">· {g.chapa.largura}×{g.chapa.altura} mm · {g.chapas.length} chapa(s)</span>
+              {g.chapa.nome} <span className="font-sans text-[13px] font-normal text-tinta-3">· {g.chapa.largura}×{g.chapa.altura} mm · {g.chapas.length} chapa(s){g.alternativas ? ` · tamanho mais barato entre ${g.alternativas}` : ''}</span>
             </h3>
 
             <ol className="mt-2 mb-3 grid gap-x-6 gap-y-1 text-[13px] sm:grid-cols-2 xl:grid-cols-3">

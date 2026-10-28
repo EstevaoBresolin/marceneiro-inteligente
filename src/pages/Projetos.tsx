@@ -1,4 +1,6 @@
-import { Copy, Trash2 } from 'lucide-react';
+import { Copy, Download, FileJson, Trash2 } from 'lucide-react';
+import { baixarArquivo, diasDesde, useBaixarBackup } from '../components/Backup';
+import { montarBackupProjeto, nomeArquivoBackup } from '../lib/backup';
 import { useState } from 'react';
 import { Botao, Titulo } from '../components/ui';
 import type { Projeto } from '../domain/types';
@@ -77,7 +79,9 @@ function NovoProjeto({ onEscolher }: { onEscolher: (t: Template) => void }) {
 }
 
 export function Projetos() {
-  const { projetos, novoProjeto, duplicarProjeto, removerProjeto, carregado } = useApp();
+  const { projetos, novoProjeto, duplicarProjeto, removerProjeto, carregado, config } = useApp();
+  const baixarBackup = useBaixarBackup();
+  const diasBackup = diasDesde(config.ultimoBackup);
   const [escolhendo, setEscolhendo] = useState(false);
   const [confirmar, setConfirmar] = useState<string | null>(null);
 
@@ -96,6 +100,20 @@ export function Projetos() {
           </Botao>
         )}
       </div>
+
+      {projetos.length > 0 && (diasBackup === null || diasBackup >= 7) && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-md border border-[#e7c9a6] bg-[#fbf3ea] px-4 py-3 text-[13px]">
+          <span className="flex-1">
+            {diasBackup === null ? 'Você ainda não fez backup.' : `Último backup há ${diasBackup} dias.`} Os projetos ficam só neste navegador: guarde uma cópia.
+          </span>
+          <Botao tamanho="sm" onClick={baixarBackup}>
+            <Download className="size-3.5" /> Baixar backup
+          </Botao>
+          <a href="#/config" onClick={() => setTimeout(() => document.getElementById('backup')?.scrollIntoView(), 50)} className="text-aco hover:underline">
+            Restaurar
+          </a>
+        </div>
+      )}
 
       {(escolhendo || (carregado && projetos.length === 0)) && (
         <div className="mb-8">
@@ -124,6 +142,9 @@ export function Projetos() {
               </div>
             </button>
             <div className="flex justify-end gap-1 px-3 pb-3">
+              <Botao tamanho="sm" variante="fantasma" title="Baixar só este projeto, para mandar a outra pessoa ou guardar" onClick={() => baixarArquivo(JSON.stringify(montarBackupProjeto(p, config)), nomeArquivoBackup(p.nome).replace('backup-', 'projeto-'))}>
+                <FileJson className="size-3.5" /> Arquivo
+              </Botao>
               <Botao tamanho="sm" variante="fantasma" onClick={() => duplicarProjeto(p.id)}>
                 <Copy className="size-3.5" /> Duplicar
               </Botao>

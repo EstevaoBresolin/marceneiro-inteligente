@@ -172,6 +172,6 @@ export function Titulo({ children, sub }: { children: ReactNode; sub?: ReactNode
   );
 }
 
-export function Painel({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cx('rounded-lg border border-linha bg-painel', className)}>{children}</section>;
+export function Painel({ children, className, id }: { children: ReactNode; className?: string; id?: string }) {
+  return <section id={id} className={cx('rounded-lg border border-linha bg-painel', className)}>{children}</section>;
 }

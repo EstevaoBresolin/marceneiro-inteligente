@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { DinheiroInput, NumeroInput, Painel, Selecao, TextoInput, Titulo } from '../components/ui';
 import { novoId } from '../domain/money';
 import { useApp } from '../store/app';
@@ -60,7 +60,8 @@ export function Catalogo() {
         onAdicionar={() => setCatalogo((c) => void c.chapas.push({ id: novoId(), nome: 'Nova chapa', espessura: 15, largura: 2750, altura: 1850, temVeio: false, precoCentavos: 0, cor: '#f1efe9' }))}
       >
         {catalogo.chapas.map((ch, i) => (
-          <tr key={ch.id} className="border-b border-linha last:border-0">
+          <Fragment key={ch.id}>
+          <tr className="border-t border-linha first:border-0">
             <td className={td}>
               <TextoInput ariaLabel="Nome" className="h-8 min-w-48" valor={ch.nome} onChange={(v) => setCatalogo((c) => void (c.chapas[i].nome = v))} />
             </td>
@@ -84,6 +85,34 @@ export function Catalogo() {
             </td>
             <Remover nome={ch.nome} onClick={() => setCatalogo((c) => void c.chapas.splice(i, 1))} />
           </tr>
+          <tr>
+            <td colSpan={8} className="px-3 pb-2">
+              <div className="flex flex-wrap items-center gap-2 text-[12px]">
+                {(ch.tamanhos ?? []).map((t, k) => (
+                  <span key={k} className="inline-flex items-center gap-1 rounded-md border border-linha bg-painel-2 py-0.5 pl-2 pr-1">
+                    <span className="text-tinta-3">também</span>
+                    <NumeroInput ariaLabel="Comprimento do outro tamanho" className="h-7 w-16 px-1.5 text-[12px]" valor={t.largura} min={100} onChange={(v) => setCatalogo((c) => void (c.chapas[i].tamanhos![k].largura = Math.round(v)))} />
+                    ×
+                    <NumeroInput ariaLabel="Largura do outro tamanho" className="h-7 w-16 px-1.5 text-[12px]" valor={t.altura} min={100} onChange={(v) => setCatalogo((c) => void (c.chapas[i].tamanhos![k].altura = Math.round(v)))} />
+                    <div className="w-28">
+                      <DinheiroInput ariaLabel="Preço do outro tamanho" centavos={t.precoCentavos} onChange={(v) => setCatalogo((c) => void (c.chapas[i].tamanhos![k].precoCentavos = v))} />
+                    </div>
+                    <button aria-label="Remover tamanho" className="p-1 text-tinta-3 hover:text-perigo" onClick={() => setCatalogo((c) => void c.chapas[i].tamanhos!.splice(k, 1))}>
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </span>
+                ))}
+                <button
+                  className="text-aco hover:underline"
+                  onClick={() => setCatalogo((c) => void (c.chapas[i].tamanhos = [...(c.chapas[i].tamanhos ?? []), { largura: 2440, altura: 1830, precoCentavos: c.chapas[i].precoCentavos }]))}
+                >
+                  + outro tamanho desta chapa
+                </button>
+                {(ch.tamanhos?.length ?? 0) > 0 && <span className="text-tinta-3">O plano de corte usa o tamanho que sair mais barato.</span>}
+              </div>
+            </td>
+          </tr>
+          </Fragment>
         ))}
       </Tabela>
 

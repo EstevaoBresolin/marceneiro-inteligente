@@ -15,6 +15,8 @@ export type ChapaCorte = {
   largura: number; // eixo X, mm
   altura: number; // eixo Y, mm
   temVeio: boolean;
+  /** preço desta chapa (deste tamanho), centavos */
+  precoCentavos?: number;
 };
 
 export type EntradaOtimizador = {
@@ -73,4 +75,6 @@ export type ResultadoCorte = {
   maiorSobra: Retangulo | null;
   estrategia: string;
   iteracoes: number;
+  /** quantos tamanhos de chapa foram comparados (quando mais de um) */
+  alternativas?: number;
 };

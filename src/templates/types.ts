@@ -51,11 +51,12 @@ export const str = (p: Params, k: string) => String(p[k] ?? '');
 export const bool = (p: Params, k: string) => p[k] === true || p[k] === 'true';
 
 /** padrões do modelo com as folgas que a marcenaria configurou */
-export function parametrosIniciais(t: Template, pd?: { folgaPorta: number; recuoPrateleira: number }): Params {
+export function parametrosIniciais(t: Template, pd?: { folgaPorta: number; recuoPrateleira: number; folgaCorredica?: number }): Params {
   const p = padroes(t);
   if (!pd) return p;
   if ('folgaPorta' in p) p.folgaPorta = pd.folgaPorta;
   if ('folgaFrente' in p) p.folgaFrente = pd.folgaPorta;
   if ('recuoPrateleira' in p) p.recuoPrateleira = pd.recuoPrateleira;
+  if ('folgaCorredica' in p && pd.folgaCorredica !== undefined) p.folgaCorredica = pd.folgaCorredica;
   return p;
 }

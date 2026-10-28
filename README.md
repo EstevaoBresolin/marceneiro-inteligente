@@ -45,6 +45,15 @@ Funções em `api/` (`eventos`, `feedback`, `admin`); sem `BLOB_READ_WRITE_TOKEN
 - **Exportar**: PDF do plano de corte (1 chapa por página), PDF de ficha/orçamento, CSV da lista de corte.
 - Tudo salvo no navegador (IndexedDB).
 
+## Recursos de oficina (Fase 2)
+
+- **Furação e folgas configuráveis** (Configurações): diâmetro, profundidade e distâncias de cavilha, caneco de dobradiça, calço, pino de prateleira e puxador; folga de porta, recuo de prateleira e folga de corrediça. Desenhos, PDFs e DXF usam esses valores.
+- **Tamanhos de chapa por material** (Catálogo): cada chapa pode ter outros tamanhos com preço próprio (ex.: 2750×1850 e 2440×1830). O plano de corte testa todos e escolhe o que sai mais barato.
+- **Corte da semana**: marque vários projetos (com quantidade) e corte tudo junto. Mostra quantas chapas e quanto dinheiro economiza em relação a cortar cada um separado. Cada peça leva o nome do cliente/projeto.
+- **Exportar para seccionadora/CNC**: CSV com modelos prontos (Excel em português, otimizadores em inglês, só medidas), separador, decimal, cabeçalho e colunas ajustáveis com prévia; DXF por peça (contorno, fita e furos em camadas `FURO_D{diâmetro}_P{profundidade}`) num ZIP com LEIA-ME.
+- **Termos e LGPD simples**: aceite no primeiro acesso, página `#/termos`, opção de não enviar dados de uso.
+- **Backup**: baixar tudo num arquivo, restaurar juntando ou substituindo, exportar um projeto só, lembrete depois de 7 dias sem backup e "apagar tudo deste computador".
+
 ## Ajustar preços
 
 Os valores iniciais são **exemplos**. Troque em:
@@ -78,4 +87,4 @@ src/
 
 ## Próximos passos (Fase 2)
 
-Supabase (login e sincronização), sobras em estoque reaproveitadas no próximo plano, edição de furos e ferragens por peça, etiquetas para as peças cortadas.
+Supabase (login e sincronização entre computadores), sobras em estoque reaproveitadas no próximo plano, edição de furos e ferragens por peça, etiquetas para as peças cortadas.

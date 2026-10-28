@@ -126,7 +126,17 @@ export function CorteAvulso() {
             }} disabled={!pecas.length}>
               <FileDown className="size-4" /> PDF
             </Botao>
-            <Botao onClick={async () => (await exportar()).csvListaCorte('corte-avulso', pecas, catalogo.chapas, catalogo.fitas, 1)} disabled={!pecas.length}>
+            <Botao
+              title="Usa o formato escolhido em Exportar para seccionadora"
+              onClick={async () => {
+                const { gerarCsv } = await import('../export/maquina');
+                const url = URL.createObjectURL(new Blob([gerarCsv(pecas, catalogo, config.exportacaoCsv)], { type: 'text/csv;charset=utf-8' }));
+                Object.assign(document.createElement('a'), { href: url, download: 'corte-avulso.csv' }).click();
+                setTimeout(() => URL.revokeObjectURL(url), 2000);
+                rastrear('exportou', { tipo: 'csv', avulso: true });
+              }}
+              disabled={!pecas.length}
+            >
               <FileSpreadsheet className="size-4" /> CSV
             </Botao>
           </div>

@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Botao, Campo, DinheiroInput, NumeroInput, Painel, Segmentos, Selecao, Titulo } from '../components/ui';
+import { Botao, Campo, DinheiroInput, Interruptor, NumeroInput, Painel, Segmentos, Selecao, Titulo } from '../components/ui';
 import { NOMES_FURO, type CorteModo, type TipoFuro } from '../domain/types';
 import { useApp } from '../store/app';
-import { FormEmpresa, FormFolgas, FormPadroesOrcamento, FormPreco } from '../components/FormsConfig';
+import { PainelBackup } from '../components/Backup';
+import { FormEmpresa, FormFolgas, FormPadroesOrcamento, FormPreco, FormUsinagem } from '../components/FormsConfig';
+import { USINAGEM_PADRAO } from '../domain/usinagem';
 
 function Secao({ titulo, sub, children }: { titulo: string; sub?: string; children: React.ReactNode }) {
   return (
@@ -116,6 +118,33 @@ export function Config() {
         <h2 className="font-cond text-lg font-semibold">Folgas e serra</h2>
         <p className="mb-4 text-[13px] text-tinta-3">As folgas valem para os módulos que você criar daqui para frente.</p>
         <FormFolgas config={config} setConfig={setConfig} />
+      </Painel>
+
+      <Painel className="mb-6 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="font-cond text-lg font-semibold">Furação</h2>
+            <p className="mb-4 text-[13px] text-tinta-3">Os desenhos das peças e o DXF para CNC usam estas medidas. Coloque as da sua furadeira ou gabarito.</p>
+          </div>
+          <Botao tamanho="sm" variante="fantasma" onClick={() => setConfig((c) => void (c.usinagem = structuredClone(USINAGEM_PADRAO)))}>
+            Voltar ao padrão
+          </Botao>
+        </div>
+        <FormUsinagem config={config} setConfig={setConfig} />
+      </Painel>
+
+      <Painel id="backup" className="mb-6 p-5">
+        <h2 className="font-cond text-lg font-semibold">Backup</h2>
+        <p className="mb-4 text-[13px] text-tinta-3">Seus projetos ficam só neste navegador. Baixe um backup toda semana e guarde o arquivo (no e-mail, no Drive ou num pendrive).</p>
+        <PainelBackup />
+      </Painel>
+
+      <Painel className="mb-6 p-5">
+        <h2 className="font-cond text-lg font-semibold">Privacidade</h2>
+        <p className="mb-3 text-[13px] text-tinta-3">
+          Durante o teste o sistema manda registros simples de uso (sem medidas, valores ou dados de clientes). <a href="#/termos" className="text-aco hover:underline">Ler os termos</a>
+        </p>
+        <Interruptor label="Enviar registros de uso para ajudar a melhorar o sistema" ligado={config.enviarUso !== false} onChange={(v) => setConfig((c) => void (c.enviarUso = v))} />
       </Painel>
 
       <div className="flex items-center gap-3">

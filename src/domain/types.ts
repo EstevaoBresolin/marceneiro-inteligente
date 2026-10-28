@@ -1,3 +1,5 @@
+import type { PadroesUsinagem } from './usinagem';
+import type { ConfigCsv } from '../export/maquina';
 // Unidades: medidas em milímetros (inteiros), dinheiro em centavos (inteiros).
 
 export type Chapa = {
@@ -11,7 +13,11 @@ export type Chapa = {
   temVeio: boolean;
   precoCentavos: number;
   cor: string;
+  /** outros tamanhos do mesmo material (fornecedores diferentes); o plano usa o mais barato */
+  tamanhos?: TamanhoChapa[];
 };
+
+export type TamanhoChapa = { largura: number; altura: number; precoCentavos: number };
 
 export type FitaBorda = {
   id: string;
@@ -96,7 +102,17 @@ export type Config = {
   venda: ConfigVenda;
   empresa: Empresa;
   /** folgas e recuos padrão aplicados em todo módulo novo */
-  padroes: { folgaPorta: number; recuoPrateleira: number };
+  padroes: { folgaPorta: number; recuoPrateleira: number; folgaCorredica: number };
+  /** distâncias e diâmetros da furação */
+  usinagem: PadroesUsinagem;
+  /** quando foi o último backup baixado (ms) */
+  ultimoBackup: number | null;
+  /** quando aceitou os termos do período de teste (ms) */
+  termosAceitosEm: number | null;
+  /** enviar registros de uso (pode desligar a qualquer momento) */
+  enviarUso: boolean;
+  /** formato do CSV para seccionadora/otimizador */
+  exportacaoCsv: ConfigCsv;
   onboardingConcluido: boolean;
   proximoOrcamento: number;
 };

@@ -103,3 +103,18 @@ describe('otimizador de corte guilhotina', () => {
     expect(guilhotinavel({ pecas })).toBe(false);
   });
 });
+
+describe('vários tamanhos de chapa', () => {
+  it('escolhe o tamanho que sai mais barato', async () => {
+    const { planejarCorte } = await import('./index');
+    const peca = { id: 'p', nome: 'Lateral', chapaId: 'c', comprimento: 2400, largura: 580, quantidade: 3, podeGirar: true, bordas: { c1: null, c2: null, l1: null, l2: null }, furos: [] };
+    // 3 × 2400×580 cabem numa 2750×1850 (R$ 300) e também numa 2440×1830 (R$ 260): escolhe a de 260
+    const chapa = { id: 'c', nome: 'MDF', espessura: 15, largura: 2750, altura: 1850, temVeio: false, precoCentavos: 30000, cor: '#fff', tamanhos: [{ largura: 2440, altura: 1830, precoCentavos: 26000 }] };
+    const p = planejarCorte([peca], 1, [chapa], { kerf: 4, refilo: 10, tempoMs: 200 });
+    expect(p.grupos[0].chapa.largura).toBe(2440);
+    expect(p.grupos[0].alternativas).toBe(2);
+    // peça de 2500 não cabe na menor: fica a maior
+    const p2 = planejarCorte([{ ...peca, comprimento: 2500 }], 1, [chapa], { kerf: 4, refilo: 10, tempoMs: 200 });
+    expect(p2.grupos[0].chapa.largura).toBe(2750);
+  });
+});

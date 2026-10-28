@@ -6,6 +6,15 @@ export { otimizar } from './search';
 export { validarResultado, guilhotinavel } from './validate';
 export type * from './types';
 
+/** menos peças sem caber → menor custo de chapas → maior aproveitamento */
+function melhorTamanho(a: ResultadoCorte, b: ResultadoCorte) {
+  if (a.naoCabem.length !== b.naoCabem.length) return a.naoCabem.length < b.naoCabem.length;
+  const ca = a.chapas.length * (a.chapa.precoCentavos ?? 0);
+  const cb = b.chapas.length * (b.chapa.precoCentavos ?? 0);
+  if (ca !== cb) return ca < cb;
+  return a.aproveitamentoMedio > b.aproveitamentoMedio;
+}
+
 export type PlanoCorte = {
   /** um resultado por tipo de chapa */
   grupos: ResultadoCorte[];
@@ -44,15 +53,21 @@ export function planejarCorte(
   const tempoPorGrupo = Math.max(150, Math.floor((opts.tempoMs ?? 1500) / Math.max(1, porChapa.size)));
   for (const [chapaId, lista] of porChapa) {
     const c = chapas.find((x) => x.id === chapaId)!;
-    grupos.push(
-      otimizar({
+    const tamanhos = [{ largura: c.largura, altura: c.altura, precoCentavos: c.precoCentavos }, ...(c.tamanhos ?? [])].filter((t) => t.largura > 0 && t.altura > 0);
+    const tempo = Math.max(120, Math.floor(tempoPorGrupo / tamanhos.length));
+    let melhor: ResultadoCorte | null = null;
+    for (const t of tamanhos) {
+      const r = otimizar({
         pecas: lista,
-        chapa: { id: c.id, nome: c.nome, largura: c.largura, altura: c.altura, temVeio: c.temVeio },
+        chapa: { id: c.id, nome: c.nome, largura: t.largura, altura: t.altura, temVeio: c.temVeio, precoCentavos: t.precoCentavos },
         kerf: opts.kerf,
         refilo: opts.refilo,
-        tempoMs: tempoPorGrupo,
-      }),
-    );
+        tempoMs: tempo,
+      });
+      if (!melhor || melhorTamanho(r, melhor)) melhor = r;
+    }
+    if (tamanhos.length > 1) melhor!.alternativas = tamanhos.length;
+    grupos.push(melhor!);
   }
   return { grupos, semChapa };
 }

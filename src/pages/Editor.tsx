@@ -4,6 +4,7 @@ import { CustosView } from '../components/CustosView';
 import { OrcamentoView } from '../components/OrcamentoView';
 import { novoOrcamento } from '../domain/orcamento';
 import { rastrear } from '../lib/telemetria';
+import { ExportarMaquina } from '../components/ExportarMaquina';
 import { DesenhosView } from '../components/DesenhosView';
 import { ManualView } from '../components/ManualView';
 import { numerarPecas } from '../domain/usinagem';
@@ -520,7 +521,7 @@ export function Editor({ id }: { id: string }) {
     }
     setExportando(tipo);
     try {
-      const { baixar, csvListaCorte, pdfOrcamento, pdfPlanoCorte } = await import('../export/exportar');
+      const { baixar, pdfOrcamento, pdfPlanoCorte } = await import('../export/exportar');
       const lim = montado?.limites;
       if (tipo === 'corte') await pdfPlanoCorte({ projeto: p.nome, plano, pecas, fitas: catalogo.fitas, lote });
       if (tipo === 'orcamento')
@@ -534,7 +535,6 @@ export function Editor({ id }: { id: string }) {
           custos,
           venda: config.venda,
         });
-      if (tipo === 'csv') csvListaCorte(p.nome, pecas, catalogo.chapas, catalogo.fitas, lote);
       if (tipo === 'png') {
         const png = cena.current?.capturarPng();
         if (png) baixar(Uint8Array.from(atob(png.split(',')[1]), (c) => c.charCodeAt(0)), `${p.nome}.png`, 'image/png');
@@ -823,7 +823,7 @@ export function Editor({ id }: { id: string }) {
                 )}
               </>
             )}
-            {aba === 'desenhos' && <DesenhosView pecas={pecas} numeros={numeros} catalogo={catalogo} projeto={p.nome} />}
+            {aba === 'desenhos' && <DesenhosView pecas={pecas} numeros={numeros} catalogo={catalogo} projeto={p.nome} usinagem={config.usinagem} />}
             {aba === 'montagem' && montado && (
               <ManualView montado={montado} catalogo={catalogo} numeros={numeros} projeto={p.nome} exportarAoAbrir={exportarManual} onExportado={() => setExportarManual(false)} />
             )}
@@ -849,7 +849,6 @@ export function Editor({ id }: { id: string }) {
                   { id: 'orcamento', icone: <FileDown className="size-5" />, titulo: 'Ficha de custos (PDF)', texto: 'Uso interno: imagem 3D, peças, custos linha a linha e preço sugerido.' },
                   { id: 'desenhos', icone: <FileDown className="size-5" />, titulo: 'Desenhos com furação (PDF)', texto: 'Cada peça com medidas, fita e a posição de cada furo.' },
                   { id: 'manual', icone: <FileDown className="size-5" />, titulo: 'Manual de montagem (PDF)', texto: 'Passo a passo com imagem 3D de cada etapa.' },
-                  { id: 'csv', icone: <FileSpreadsheet className="size-5" />, titulo: 'Lista de corte (CSV)', texto: 'Abre no Excel ou em outro programa de corte.' },
                   { id: 'png', icone: <Image className="size-5" />, titulo: 'Imagem do 3D (PNG)', texto: 'Para anúncio ou para mostrar ao cliente.' },
                 ]
                   .filter((x) => !(livre && ['png', 'desenhos', 'manual'].includes(x.id)))
@@ -860,6 +859,12 @@ export function Editor({ id }: { id: string }) {
                       <div className="mt-1 text-[13px] text-tinta-3">{x.texto}</div>
                     </button>
                   ))}
+                <div className="sm:col-span-2 xl:col-span-4 rounded-lg border border-linha p-4">
+                  <h2 className="mb-3 flex items-center gap-2 font-cond text-lg font-semibold">
+                    <FileSpreadsheet className="size-5 text-aco" /> Exportar para seccionadora / CNC
+                  </h2>
+                  <ExportarMaquina pecas={pecas} lote={lote} nome={p.nome} numeros={numeros} catalogo={catalogo} config={config} setConfig={setConfig} comDxf={!livre} />
+                </div>
               </div>
             )}
           </div>

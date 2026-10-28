@@ -7,6 +7,7 @@ import { db, gravarKv, lerKv } from '../lib/db';
 import { parametrosIniciais, templatePorId } from '../templates';
 import { nomeCurto, normalizarProjeto } from '../domain/composicao';
 import { rastrear } from '../lib/telemetria';
+import { combinarProjetos, type ArquivoBackup } from '../lib/backup';
 
 type AppState = {
   carregado: boolean;
@@ -21,6 +22,8 @@ type AppState = {
   novoProjeto: (templateId: string) => Projeto;
   duplicarProjeto: (id: string) => void;
   removerProjeto: (id: string) => void;
+  restaurarBackup: (a: ArquivoBackup, modo: 'mesclar' | 'substituir', comConfig: boolean) => Promise<number>;
+  apagarTudo: () => Promise<void>;
 };
 
 function mesclarPadrao<T extends object>(salvo: T | undefined, padrao: T): T {
@@ -125,6 +128,38 @@ export const useApp = create<AppState>()(
         s.projetos = s.projetos.filter((p) => p.id !== id);
       });
       void db.projetos.delete(id);
+    },
+
+    restaurarBackup: async (a, modo, comConfig) => {
+      const projetos = combinarProjetos(get().projetos, a.projetos, modo);
+      await db.transaction('rw', db.projetos, async () => {
+        if (modo === 'substituir') await db.projetos.clear();
+        await db.projetos.bulkPut(structuredClone(projetos));
+      });
+      set((s) => {
+        s.projetos = projetos;
+        if (comConfig && a.catalogo) s.catalogo = mesclarPadrao(a.catalogo, CATALOGO_PADRAO);
+        if (comConfig && a.config) {
+          const prox = Math.max(s.config.proximoOrcamento, a.config.proximoOrcamento ?? 1);
+          s.config = { ...mesclarPadrao(a.config, CONFIG_PADRAO), proximoOrcamento: prox, onboardingConcluido: true };
+        }
+      });
+      if (comConfig) {
+        void gravarKv('catalogo', get().catalogo);
+        void gravarKv('config', get().config);
+      }
+      rastrear('backup_restaurado', { modo, projetos: a.projetos.length });
+      return a.projetos.length;
+    },
+
+    apagarTudo: async () => {
+      await db.projetos.clear();
+      await db.kv.clear();
+      set((s) => {
+        s.projetos = [];
+        s.catalogo = structuredClone(CATALOGO_PADRAO);
+        s.config = structuredClone(CONFIG_PADRAO);
+      });
     },
   })),
 );

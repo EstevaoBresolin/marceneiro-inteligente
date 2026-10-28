@@ -8,6 +8,7 @@ import { useApp } from '../store/app';
 import { templatePorId } from '../templates';
 import { FormEmpresa, FormFolgas, FormPreco } from './FormsConfig';
 import { Botao, Campo, DinheiroInput, NumeroInput, Selecao, TextoInput, cx } from './ui';
+import { TextoTermos } from '../pages/Termos';
 
 const PASSOS = ['Sua marcenaria', 'Chapas e preços', 'Folgas e lucro', 'Primeiro móvel'];
 const SUGESTOES = ['armario-portas', 'balcao', 'aereo-cozinha', 'gaveteiro', 'nicho', 'estante'];
@@ -26,7 +27,9 @@ export function Onboarding() {
     }
   };
 
-  const podeAvancar = passo !== 0 || config.empresa.nome.trim().length > 1;
+  const aceitou = !!config.termosAceitosEm;
+  const podeAvancar = passo !== 0 || (config.empresa.nome.trim().length > 1 && aceitou);
+  const [verTermos, setVerTermos] = useState(false);
 
   return (
     <div className="fixed inset-0 z-[90] overflow-y-auto bg-fundo">
@@ -55,6 +58,27 @@ export function Onboarding() {
               <h1 className="font-cond text-2xl font-semibold">Bem-vindo! Vamos deixar o sistema com a cara da sua marcenaria.</h1>
               <p className="mb-6 mt-1 text-tinta-2">Leva uns 3 minutos. Esses dados aparecem nos orçamentos que você mandar para os clientes.</p>
               <FormEmpresa empresa={config.empresa} setConfig={setConfig} compacto />
+              <div className="mt-6 rounded-md border border-linha bg-painel-2 p-3">
+                <label className="flex items-start gap-2 text-[13px]">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-4 accent-aco"
+                    checked={aceitou}
+                    onChange={(e) => setConfig((c) => void (c.termosAceitosEm = e.target.checked ? Date.now() : null))}
+                  />
+                  <span>
+                    Li e aceito os termos do período de teste: é uma versão de teste, os projetos ficam neste computador e recebemos só registros simples de uso e os feedbacks.{' '}
+                    <button type="button" className="font-medium text-aco hover:underline" onClick={() => setVerTermos((v) => !v)}>
+                      {verTermos ? 'Esconder termos' : 'Ler termos'}
+                    </button>
+                  </span>
+                </label>
+                {verTermos && (
+                  <div className="mt-3 max-h-72 overflow-y-auto rounded border border-linha bg-painel p-4">
+                    <TextoTermos />
+                  </div>
+                )}
+              </div>
             </>
           )}
 
@@ -190,7 +214,7 @@ export function Onboarding() {
             </Botao>
           )}
         </div>
-        {!podeAvancar && <p className="mt-2 text-right text-[12px] text-tinta-3">Coloque o nome da marcenaria para continuar.</p>}
+        {!podeAvancar && <p className="mt-2 text-right text-[12px] text-tinta-3">{config.empresa.nome.trim().length > 1 ? 'Aceite os termos para continuar.' : 'Coloque o nome da marcenaria para continuar.'}</p>}
       </div>
     </div>
   );

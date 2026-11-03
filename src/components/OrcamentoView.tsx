@@ -92,7 +92,7 @@ export function OrcamentoView({ projeto, orcamento: o, montado, custos, config, 
               <TextoInput ariaLabel="Nome do cliente" valor={cliente.nome} onChange={setC('nome')} />
             </Campo>
             <Campo label="WhatsApp">
-              <TextoInput ariaLabel="WhatsApp do cliente" valor={cliente.telefone} onChange={setC('telefone')} placeholder="(54) 99999-9999" />
+              <TextoInput ariaLabel="WhatsApp do cliente" valor={cliente.telefone} onChange={setC('telefone')} placeholder="(00) 00000-0000" />
             </Campo>
             <Campo label="E-mail">
               <TextoInput ariaLabel="E-mail do cliente" valor={cliente.email} onChange={setC('email')} />

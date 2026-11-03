@@ -77,19 +77,19 @@ export function FormEmpresa({ empresa, setConfig, compacto }: { empresa: Empresa
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Campo label="Nome da marcenaria">
-        <TextoInput ariaLabel="Nome da marcenaria" valor={empresa.nome} onChange={set('nome')} placeholder="Ex.: Marcenaria Bresolin" />
+        <TextoInput ariaLabel="Nome da marcenaria" valor={empresa.nome} onChange={set('nome')} placeholder="Nome que aparece nos orçamentos" />
       </Campo>
       <Campo label="Seu nome">
         <TextoInput ariaLabel="Responsável" valor={empresa.responsavel} onChange={set('responsavel')} />
       </Campo>
       <Campo label="WhatsApp">
-        <TextoInput ariaLabel="WhatsApp" valor={empresa.telefone} onChange={set('telefone')} placeholder="(54) 99999-9999" />
+        <TextoInput ariaLabel="WhatsApp" valor={empresa.telefone} onChange={set('telefone')} placeholder="(00) 00000-0000" />
       </Campo>
       <Campo label="CNPJ ou CPF">
         <TextoInput ariaLabel="CNPJ ou CPF" valor={empresa.documento} onChange={set('documento')} placeholder="00.000.000/0001-00" />
       </Campo>
       <Campo label="Cidade">
-        <TextoInput ariaLabel="Cidade" valor={empresa.cidade} onChange={set('cidade')} placeholder="Caxias do Sul - RS" />
+        <TextoInput ariaLabel="Cidade" valor={empresa.cidade} onChange={set('cidade')} placeholder="Cidade - UF" />
       </Campo>
       {!compacto && (
         <>

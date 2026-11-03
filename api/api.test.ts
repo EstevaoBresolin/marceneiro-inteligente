@@ -17,7 +17,7 @@ function chamar(h: (req: Req, res: never) => Promise<void>, req: Partial<Req>) {
   });
 }
 
-const id = { instalacao: 'abc123-def', empresa: 'Marcenaria Teste', responsavel: 'João', telefone: '54999', cidade: 'Caxias', versao: '0.3.0' };
+const id = { instalacao: 'abc123-def', empresa: 'Marcenaria Teste', responsavel: 'João', telefone: '11999', cidade: 'Cidade Teste', versao: '0.3.0' };
 
 describe('api do período de teste', () => {
   beforeEach(() => {

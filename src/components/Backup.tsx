@@ -121,7 +121,7 @@ export function PainelBackup() {
 
       <div className="border-t border-linha pt-4">
         <div className="mb-1 text-[13px] font-medium">Apagar tudo deste computador</div>
-        <p className="mb-2 text-[12px] text-tinta-3">Apaga projetos, catálogo e configurações deste navegador. Não tem volta sem um backup.</p>
+        <p className="mb-2 text-[12px] text-tinta-3">Apaga projetos, catálogo e configurações deste navegador. Se você entrou com sua conta, eles voltam da nuvem na próxima sincronização; para apagar da conta, remova os projetos um a um.</p>
         {apagar === 0 && (
           <Botao variante="perigo" onClick={() => setApagar(1)}>
             Apagar tudo

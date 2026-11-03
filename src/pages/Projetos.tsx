@@ -1,3 +1,4 @@
+import { nuvemAtiva } from '../lib/nuvem';
 import { Copy, Download, FileJson, Trash2 } from 'lucide-react';
 import { baixarArquivo, diasDesde, useBaixarBackup } from '../components/Backup';
 import { montarBackupProjeto, nomeArquivoBackup } from '../lib/backup';
@@ -101,10 +102,10 @@ export function Projetos() {
         )}
       </div>
 
-      {projetos.length > 0 && (diasBackup === null || diasBackup >= 7) && (
+      {projetos.length > 0 && (diasBackup === null ? !nuvemAtiva : diasBackup >= (nuvemAtiva ? 30 : 7)) && (
         <div className="mb-6 flex flex-wrap items-center gap-3 rounded-md border border-[#e7c9a6] bg-[#fbf3ea] px-4 py-3 text-[13px]">
           <span className="flex-1">
-            {diasBackup === null ? 'Você ainda não fez backup.' : `Último backup há ${diasBackup} dias.`} Os projetos ficam só neste navegador: guarde uma cópia.
+            {diasBackup === null ? 'Você ainda não fez backup.' : `Último backup há ${diasBackup} dias.`} É uma versão de teste: guarde uma cópia de vez em quando.
           </span>
           <Botao tamanho="sm" onClick={baixarBackup}>
             <Download className="size-3.5" /> Baixar backup

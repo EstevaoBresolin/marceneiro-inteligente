@@ -8,6 +8,8 @@ import { parametrosIniciais, templatePorId } from '../templates';
 import { nomeCurto, normalizarProjeto } from '../domain/composicao';
 import { rastrear } from '../lib/telemetria';
 import { combinarProjetos, type ArquivoBackup } from '../lib/backup';
+import { mudou } from '../lib/mudancas';
+import type { PonteStore } from '../lib/nuvem';
 
 type AppState = {
   carregado: boolean;
@@ -69,11 +71,13 @@ export const useApp = create<AppState>()(
     setCatalogo: (fn) => {
       set((s) => fn(s.catalogo));
       void gravarKv('catalogo', get().catalogo);
+      mudou({ perfil: true });
     },
 
     setConfig: (fn) => {
       set((s) => fn(s.config));
       void gravarKv('config', get().config);
+      mudou({ perfil: true });
     },
 
     restaurarPadroes: () => {
@@ -83,6 +87,7 @@ export const useApp = create<AppState>()(
       });
       void gravarKv('catalogo', get().catalogo);
       void gravarKv('config', get().config);
+      mudou({ perfil: true });
     },
 
     salvarProjeto: (p) => {
@@ -92,7 +97,7 @@ export const useApp = create<AppState>()(
         if (i >= 0) s.projetos.splice(i, 1);
         s.projetos.unshift(atualizado);
       });
-      void db.projetos.put(structuredClone(atualizado));
+      void db.projetos.put(structuredClone(atualizado)).then(() => mudou({ projeto: p.id }));
     },
 
     novoProjeto: (templateId) => {
@@ -127,7 +132,7 @@ export const useApp = create<AppState>()(
       set((s) => {
         s.projetos = s.projetos.filter((p) => p.id !== id);
       });
-      void db.projetos.delete(id);
+      void db.projetos.delete(id).then(() => mudou({ projeto: id }));
     },
 
     restaurarBackup: async (a, modo, comConfig) => {
@@ -145,9 +150,11 @@ export const useApp = create<AppState>()(
         }
       });
       if (comConfig) {
-        void gravarKv('catalogo', get().catalogo);
-        void gravarKv('config', get().config);
+        await gravarKv('catalogo', get().catalogo);
+        await gravarKv('config', get().config);
+        mudou({ perfil: true });
       }
+      for (const p of projetos) mudou({ projeto: p.id });
       rastrear('backup_restaurado', { modo, projetos: a.projetos.length });
       return a.projetos.length;
     },
@@ -163,3 +170,27 @@ export const useApp = create<AppState>()(
     },
   })),
 );
+
+/** Ligação do store com a sincronização da nuvem */
+export const ponteStore: PonteStore = {
+  projetos: () => useApp.getState().projetos,
+  catalogo: () => useApp.getState().catalogo,
+  config: () => useApp.getState().config,
+  aplicar: async ({ gravar, apagar, catalogo, config }) => {
+    if (gravar.length) await db.projetos.bulkPut(structuredClone(gravar));
+    if (apagar.length) await db.projetos.bulkDelete(apagar);
+    if (catalogo) await gravarKv('catalogo', catalogo);
+    if (config) await gravarKv('config', config);
+    if (!gravar.length && !apagar.length && !catalogo && !config) return;
+    useApp.setState((s) => {
+      const fora = new Set([...apagar, ...gravar.map((p) => p.id)]);
+      s.projetos = [...gravar.map(normalizarProjeto), ...s.projetos.filter((p) => !fora.has(p.id))].sort((a, b) => b.atualizadoEm - a.atualizadoEm);
+      if (catalogo) {
+        s.catalogo = mesclarPadrao(catalogo, CATALOGO_PADRAO);
+        for (const f of CATALOGO_PADRAO.ferragens) if (!s.catalogo.ferragens.some((x) => x.id === f.id)) s.catalogo.ferragens.push(structuredClone(f));
+      }
+      if (config) s.config = mesclarPadrao(config, CONFIG_PADRAO);
+    });
+  },
+  limparLocal: () => useApp.getState().apagarTudo(),
+};

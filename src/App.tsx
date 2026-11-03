@@ -12,7 +12,10 @@ import { Config } from './pages/Config';
 import { CorteAvulso } from './pages/CorteAvulso';
 import { Editor } from './pages/Editor';
 import { Projetos } from './pages/Projetos';
-import { useApp } from './store/app';
+import { ponteStore, useApp } from './store/app';
+import { iniciarNuvem, nuvemAtiva, useNuvem } from './lib/nuvem';
+import { Conta } from './components/Conta';
+import { Entrar, NovaSenha } from './pages/Entrar';
 
 function Marca() {
   // perfil de uma chapa: face branca com o miolo de MDF à mostra
@@ -34,8 +37,9 @@ export default function App() {
   const termosAceitos = useApp((s) => !!s.config.termosAceitosEm);
   const setConfig = useApp((s) => s.setConfig);
   const ehAdmin = rota.tela === 'admin';
+  const nuvem = useNuvem();
   useEffect(() => {
-    void carregar();
+    void carregar().then(() => iniciarNuvem(ponteStore));
     // pede ao navegador para não apagar os projetos quando faltar espaço
     void navigator.storage?.persist?.().catch(() => {});
   }, [carregar]);
@@ -51,6 +55,19 @@ export default function App() {
   useEffect(() => {
     if (carregado && !ehAdmin) rastrear('tela', { tela: rota.tela });
   }, [rota.tela, carregado, ehAdmin]);
+  // quem aceitou os termos ao criar a conta não precisa aceitar de novo
+  const termosNaConta = nuvem.sessao?.user.user_metadata?.termos_aceitos_em as string | undefined;
+  useEffect(() => {
+    if (carregado && nuvem.puxouUmaVez && termosNaConta && !useApp.getState().config.termosAceitosEm) setConfig((c) => void (c.termosAceitosEm = Date.parse(termosNaConta) || Date.now()));
+  }, [carregado, nuvem.puxouUmaVez, termosNaConta, setConfig]);
+
+  const livre = ehAdmin || rota.tela === 'termos';
+  if (nuvemAtiva && !livre) {
+    if (!nuvem.pronto) return <div className="grid min-h-full place-items-center text-tinta-3">Carregando…</div>;
+    if (nuvem.recuperandoSenha && nuvem.sessao) return <NovaSenha />;
+    if (!nuvem.sessao) return <Entrar />;
+  }
+  const mostrarOnboarding = carregado && !onboardingConcluido && !ehAdmin && nuvem.puxouUmaVez;
 
   const links: [string, string, boolean][] = [
     ['#/projetos', 'Projetos', rota.tela === 'projetos' || rota.tela === 'editor'],
@@ -74,11 +91,14 @@ export default function App() {
             </a>
           ))}
         </nav>
-        {!ehAdmin && <BotaoFeedback />}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {!ehAdmin && <BotaoFeedback />}
+          {nuvemAtiva && nuvem.sessao && !ehAdmin && <Conta />}
+        </div>
       </header>
       {carregado && onboardingConcluido && !termosAceitos && !ehAdmin && rota.tela !== 'termos' && (
         <div className="flex flex-wrap items-center justify-center gap-3 border-b border-[#e7c9a6] bg-[#fbf3ea] px-4 py-2 text-[13px]">
-          <span>Este sistema está em teste. Leia e aceite os termos: os projetos ficam neste computador e recebemos só registros simples de uso.</span>
+          <span>Este sistema está em teste. Leia e aceite os termos: seus projetos ficam guardados na sua conta e recebemos só registros simples de uso.</span>
           <a href="#/termos" className="font-medium text-aco hover:underline">
             Ler termos
           </a>
@@ -95,7 +115,7 @@ export default function App() {
       {rota.tela === 'admin' && <Admin />}
       {rota.tela === 'producao' && <Producao />}
       {rota.tela === 'termos' && <Termos />}
-      {carregado && !onboardingConcluido && !ehAdmin && <Onboarding />}
+      {mostrarOnboarding && <Onboarding />}
     </div>
   );
 }

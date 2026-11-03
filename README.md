@@ -45,6 +45,14 @@ Funções em `api/` (`eventos`, `feedback`, `admin`); sem `BLOB_READ_WRITE_TOKEN
 - **Exportar**: PDF do plano de corte (1 chapa por página), PDF de ficha/orçamento, CSV da lista de corte.
 - Tudo salvo no navegador (IndexedDB).
 
+## Login e dados na nuvem (Supabase)
+
+- Cada marcenaria cria uma conta com e-mail e senha. Projetos, catálogo e configurações ficam na conta (tabelas `perfis` e `projetos`, com RLS: cada conta só enxerga as próprias linhas) e aparecem em qualquer computador.
+- O navegador continua sendo onde se trabalha (IndexedDB): abre na hora e funciona sem internet. Cada mudança entra numa fila e sobe em segundos; ao entrar, ao voltar para a aba e a cada 3 minutos o app puxa o que mudou em outro computador. Vale a versão mais nova; exclusões viram marcação (`apagado`).
+- O que já estava no navegador antes do login sobe para a primeira conta que entrar. Entrar com outra conta limpa o navegador antes; "Sair" também.
+- Variáveis: `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` (veja `.env.example`). Sem elas o app roda só local, sem login.
+- Esquema em `supabase/migrations/`.
+
 ## Recursos de oficina (Fase 2)
 
 - **Furação e folgas configuráveis** (Configurações): diâmetro, profundidade e distâncias de cavilha, caneco de dobradiça, calço, pino de prateleira e puxador; folga de porta, recuo de prateleira e folga de corrediça. Desenhos, PDFs e DXF usam esses valores.
@@ -87,4 +95,4 @@ src/
 
 ## Próximos passos (Fase 2)
 
-Supabase (login e sincronização entre computadores), sobras em estoque reaproveitadas no próximo plano, edição de furos e ferragens por peça, etiquetas para as peças cortadas.
+Sobras em estoque reaproveitadas no próximo plano, edição de furos e ferragens por peça, etiquetas para as peças cortadas.

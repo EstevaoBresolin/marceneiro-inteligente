@@ -135,7 +135,7 @@ export function Config() {
 
       <Painel id="backup" className="mb-6 p-5">
         <h2 className="font-cond text-lg font-semibold">Backup</h2>
-        <p className="mb-4 text-[13px] text-tinta-3">Seus projetos ficam só neste navegador. Baixe um backup toda semana e guarde o arquivo (no e-mail, no Drive ou num pendrive).</p>
+        <p className="mb-4 text-[13px] text-tinta-3">Seus projetos ficam na sua conta e neste navegador. Mesmo assim, baixe um backup de vez em quando e guarde o arquivo (no e-mail, no Drive ou num pendrive).</p>
         <PainelBackup />
       </Painel>
 

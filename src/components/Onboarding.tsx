@@ -67,7 +67,7 @@ export function Onboarding() {
                     onChange={(e) => setConfig((c) => void (c.termosAceitosEm = e.target.checked ? Date.now() : null))}
                   />
                   <span>
-                    Li e aceito os termos do período de teste: é uma versão de teste, os projetos ficam neste computador e recebemos só registros simples de uso e os feedbacks.{' '}
+                    Li e aceito os termos do período de teste: é uma versão de teste, os projetos ficam guardados na sua conta e recebemos só registros simples de uso e os feedbacks.{' '}
                     <button type="button" className="font-medium text-aco hover:underline" onClick={() => setVerTermos((v) => !v)}>
                       {verTermos ? 'Esconder termos' : 'Ler termos'}
                     </button>

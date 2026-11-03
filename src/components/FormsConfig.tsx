@@ -85,6 +85,9 @@ export function FormEmpresa({ empresa, setConfig, compacto }: { empresa: Empresa
       <Campo label="WhatsApp">
         <TextoInput ariaLabel="WhatsApp" valor={empresa.telefone} onChange={set('telefone')} placeholder="(54) 99999-9999" />
       </Campo>
+      <Campo label="CNPJ ou CPF">
+        <TextoInput ariaLabel="CNPJ ou CPF" valor={empresa.documento} onChange={set('documento')} placeholder="00.000.000/0001-00" />
+      </Campo>
       <Campo label="Cidade">
         <TextoInput ariaLabel="Cidade" valor={empresa.cidade} onChange={set('cidade')} placeholder="Caxias do Sul - RS" />
       </Campo>
@@ -92,9 +95,6 @@ export function FormEmpresa({ empresa, setConfig, compacto }: { empresa: Empresa
         <>
           <Campo label="E-mail">
             <TextoInput ariaLabel="E-mail" valor={empresa.email} onChange={set('email')} />
-          </Campo>
-          <Campo label="CNPJ ou CPF">
-            <TextoInput ariaLabel="CNPJ ou CPF" valor={empresa.documento} onChange={set('documento')} />
           </Campo>
           <div className="sm:col-span-2">
             <Campo label="Endereço">

@@ -235,6 +235,8 @@ export async function sair() {
     if (!confirm('Ainda tem mudanças que não subiram para a nuvem (sem internet?). Se sair agora, elas se perdem. Sair mesmo assim?')) return;
   }
   await supabase.auth.signOut();
+  const { useConta } = await import('./conta');
+  useConta.setState({ conta: null, equipe: false, carregada: false });
   await ponte.limparLocal();
   await gravarKv('pendentes', { projetos: [], perfil: false });
   await gravarKv('perfilEm', 0);

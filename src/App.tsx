@@ -18,6 +18,9 @@ import { iniciarNuvem, nuvemAtiva, useNuvem } from './lib/nuvem';
 import { Conta } from './components/Conta';
 import { Entrar, NovaSenha } from './pages/Entrar';
 import { Ver } from './pages/Ver';
+import { Painel } from './pages/Painel';
+import { TesteTerminou } from './components/TesteTerminou';
+import { carregarConta, diasRestantes, enviarDadosEmpresa, testeAcabou, textoDias, useConta } from './lib/conta';
 
 function Marca() {
   // perfil de uma chapa: face branca com o miolo de MDF à mostra
@@ -58,6 +61,17 @@ export default function App() {
   useEffect(() => {
     if (carregado && !semRegistro) rastrear('tela', { tela: rota.tela });
   }, [rota.tela, carregado, semRegistro]);
+  // período de teste: conta da marcenaria no Supabase, e os dados de contato vão para o painel da equipe
+  const conta = useConta();
+  const empresa = useApp((s) => s.config.empresa);
+  const uid = nuvem.sessao?.user.id;
+  useEffect(() => {
+    if (uid) void carregarConta();
+  }, [uid]);
+  useEffect(() => {
+    if (uid && carregado && nuvem.puxouUmaVez) enviarDadosEmpresa(empresa);
+  }, [uid, carregado, nuvem.puxouUmaVez, empresa]);
+
   // quem aceitou os termos ao criar a conta não precisa aceitar de novo
   const termosNaConta = nuvem.sessao?.user.user_metadata?.termos_aceitos_em as string | undefined;
   useEffect(() => {
@@ -72,7 +86,9 @@ export default function App() {
     if (nuvem.recuperandoSenha && nuvem.sessao) return <NovaSenha />;
     if (!nuvem.sessao) return <Entrar />;
   }
-  const mostrarOnboarding = carregado && !onboardingConcluido && !ehAdmin && nuvem.puxouUmaVez;
+  const acabou = nuvemAtiva && testeAcabou(conta.conta) && !conta.equipe && !livre && rota.tela !== 'painel';
+  const mostrarOnboarding = carregado && !onboardingConcluido && !ehAdmin && nuvem.puxouUmaVez && !acabou;
+  const dias = conta.conta?.plano === 'teste' ? diasRestantes(conta.conta) : null;
 
   const links: [string, string, boolean, string, React.ReactNode][] = [
     ['#/projetos', 'Projetos', rota.tela === 'projetos' || rota.tela === 'editor', 'Projetos', <FolderOpen className="size-5" />],
@@ -114,6 +130,14 @@ export default function App() {
           </button>
         </div>
       )}
+      {dias !== null && dias > 0 && dias <= 10 && !acabou && (
+        <div className="border-b border-[#e7c9a6] bg-[#fbf3ea] px-4 py-1.5 text-center text-[13px]">
+          Teste grátis: <b>{textoDias(dias)}</b>. Para continuar depois disso, fale com a gente.
+        </div>
+      )}
+      {acabou && <TesteTerminou />}
+      {!acabou && (
+        <>
       {rota.tela === 'projetos' && <Projetos />}
       {rota.tela === 'editor' && <Editor key={rota.id} id={rota.id} />}
       {rota.tela === 'corte' && <CorteAvulso />}
@@ -122,6 +146,9 @@ export default function App() {
       {rota.tela === 'admin' && <Admin />}
       {rota.tela === 'producao' && <Producao />}
       {rota.tela === 'termos' && <Termos />}
+      {rota.tela === 'painel' && <Painel />}
+        </>
+      )}
       {mostrarOnboarding && <Onboarding />}
       {menuDeBaixo && (
         <nav className="fixed inset-x-0 bottom-0 z-50 flex border-t border-linha bg-painel pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Menu">

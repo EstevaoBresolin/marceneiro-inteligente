@@ -52,6 +52,8 @@ Funções em `api/` (`eventos`, `feedback`, `admin`); sem `BLOB_READ_WRITE_TOKEN
 - O que já estava no navegador antes do login sobe para a primeira conta que entrar. Entrar com outra conta limpa o navegador antes; "Sair" também.
 - Variáveis: `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` (veja `.env.example`). Sem elas o app roda só local, sem login.
 - Esquema em `supabase/migrations/`.
+- **Teste grátis de 45 dias**: toda conta nova ganha 45 dias (tabela `contas`, gatilho em `auth.users`). Faltando 10 dias aparece um aviso; vencido, o app mostra "Seu teste grátis terminou" (com backup) e o banco deixa só ler. `VITE_WHATSAPP_EQUIPE` (opcional) mostra o botão de WhatsApp nessa tela.
+- **Painel da equipe** (`#/painel`, no menu da conta para quem está na tabela `equipe`): marcenaria, CNPJ, contato, dias restantes, uso (projetos, links, aprovações, último acesso), situação do contato, próximo contato, anotações, +15/+30 dias e plano.
 
 ## Vender e produzir (Fase 3)
 

@@ -1,6 +1,7 @@
-import { Cloud, CloudOff, LogOut, RefreshCw } from 'lucide-react';
+import { Cloud, CloudOff, LogOut, RefreshCw, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { puxar, sair, useNuvem } from '../lib/nuvem';
+import { diasRestantes, textoDias, useConta } from '../lib/conta';
 import { cx } from './ui';
 
 const TEXTO = {
@@ -13,6 +14,8 @@ const TEXTO = {
 
 export function Conta() {
   const { sessao, status, ultimaSinc } = useNuvem();
+  const { conta, equipe } = useConta();
+  const dias = conta?.plano === 'teste' ? diasRestantes(conta) : null;
   const [aberto, setAberto] = useState(false);
   const caixa = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -42,6 +45,16 @@ export function Conta() {
             <Icone className="mt-0.5 size-3.5 shrink-0" /> {TEXTO[status]}
           </div>
           {ultimaSinc && <div className="mt-0.5 text-[12px] text-tinta-3">Última sincronização: {new Date(ultimaSinc).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>}
+          {dias !== null && (
+            <div className="mt-2 rounded-md bg-[#fbf3ea] px-2 py-1.5 text-[12px] text-mdf-escuro">
+              Teste grátis: <b>{textoDias(dias)}</b> (até {new Date(conta!.teste_ate).toLocaleDateString('pt-BR')})
+            </div>
+          )}
+          {equipe && (
+            <a href="#/painel" onClick={() => setAberto(false)} className="mt-2 flex items-center gap-1.5 rounded-md border border-linha px-2 py-1.5 text-[13px] font-medium text-aco hover:bg-painel-2">
+              <Users className="size-3.5" /> Painel das marcenarias em teste
+            </a>
+          )}
           <p className="mt-2 text-[12px] text-tinta-3">Seus projetos, catálogo e preços ficam na sua conta. Entre com o mesmo e-mail em outro computador e eles aparecem lá.</p>
           <div className="mt-3 flex gap-2 border-t border-linha pt-3">
             <button className="flex items-center gap-1.5 rounded-md px-2 py-1 text-tinta-2 hover:bg-painel-2 hover:text-tinta" onClick={() => void puxar()}>

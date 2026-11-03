@@ -1,4 +1,4 @@
-import { FileDown } from 'lucide-react';
+import { FileDown, Pencil } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { assinaturaDesenho } from '../cutplan/desenho';
 import { DesenhoPeca } from '../cutplan/DesenhoPeca';
@@ -11,7 +11,7 @@ export function useItensDesenho(pecas: Peca[], numeros: Map<string, string>, usi
   return useMemo(() => {
     const furos = calcularFuracao(pecas, usinagem);
     // peças idênticas (mesma medida, fita e furação) viram um desenho só: "P5, P6"
-    const grupos = new Map<string, { peca: Peca; nums: string[]; quantidade: number; furos: Furo[] }>();
+    const grupos = new Map<string, { peca: Peca; nums: string[]; ids: string[]; quantidade: number; furos: Furo[] }>();
     for (const p of pecas) {
       if (p.somente3d) continue;
       const fs = furos.get(p.id) ?? [];
@@ -20,13 +20,14 @@ export function useItensDesenho(pecas: Peca[], numeros: Map<string, string>, usi
       if (g) {
         g.quantidade += p.quantidade;
         g.nums.push(numeros.get(p.id) ?? '');
-      } else grupos.set(k, { peca: p, nums: [numeros.get(p.id) ?? ''], quantidade: p.quantidade, furos: fs });
+        g.ids.push(p.id);
+      } else grupos.set(k, { peca: p, nums: [numeros.get(p.id) ?? ''], ids: [p.id], quantidade: p.quantidade, furos: fs });
     }
     return [...grupos.values()].map(({ nums, ...g }) => ({ ...g, numero: nums.join(', ') }));
   }, [pecas, numeros, usinagem]);
 }
 
-export function DesenhosView({ pecas, numeros, catalogo, projeto, usinagem }: { pecas: Peca[]; numeros: Map<string, string>; catalogo: Catalogo; projeto: string; usinagem?: PadroesUsinagem }) {
+export function DesenhosView({ pecas, numeros, catalogo, projeto, usinagem, onEditar }: { pecas: Peca[]; numeros: Map<string, string>; catalogo: Catalogo; projeto: string; usinagem?: PadroesUsinagem; onEditar?: (pecaId: string) => void }) {
   const itens = useItensDesenho(pecas, numeros, usinagem);
   const [gerando, setGerando] = useState(false);
 
@@ -62,7 +63,15 @@ export function DesenhosView({ pecas, numeros, catalogo, projeto, usinagem }: { 
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         {itens.map((it) => (
-          <DesenhoPeca key={`${it.numero}-${it.peca.id}`} peca={it.peca} numero={it.numero} quantidade={it.quantidade} furos={it.furos} chapa={catalogo.chapas.find((c) => c.id === it.peca.chapaId)} fitas={catalogo.fitas} />
+          <div key={`${it.numero}-${it.peca.id}`} className="relative">
+            <DesenhoPeca peca={it.peca} numero={it.numero} quantidade={it.quantidade} furos={it.furos} chapa={catalogo.chapas.find((c) => c.id === it.peca.chapaId)} fitas={catalogo.fitas} />
+            {onEditar && it.peca.box3d && (
+              <button onClick={() => onEditar(it.peca.id)} className="absolute bottom-3 right-3 flex items-center gap-1 rounded-md border border-linha bg-painel/95 px-2 py-1 text-[12px] font-medium text-aco hover:border-aco">
+                <Pencil className="size-3.5" /> Furos e ferragens
+                {it.peca.ajusteFuros && <span className="ml-1 rounded bg-aco-claro px-1 text-[10px]">ajustado</span>}
+              </button>
+            )}
+          </div>
         ))}
       </div>
       {!itens.length && <p className="text-tinta-2">Sem peças para desenhar.</p>}

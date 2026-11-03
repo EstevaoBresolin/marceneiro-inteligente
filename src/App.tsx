@@ -1,3 +1,4 @@
+import { FolderOpen, Layers, Package, Scissors, Settings } from 'lucide-react';
 import { useEffect } from 'react';
 import { BotaoFeedback } from './components/Feedback';
 import { Onboarding } from './components/Onboarding';
@@ -16,6 +17,7 @@ import { ponteStore, useApp } from './store/app';
 import { iniciarNuvem, nuvemAtiva, useNuvem } from './lib/nuvem';
 import { Conta } from './components/Conta';
 import { Entrar, NovaSenha } from './pages/Entrar';
+import { Ver } from './pages/Ver';
 
 function Marca() {
   // perfil de uma chapa: face branca com o miolo de MDF à mostra
@@ -43,24 +45,27 @@ export default function App() {
     // pede ao navegador para não apagar os projetos quando faltar espaço
     void navigator.storage?.persist?.().catch(() => {});
   }, [carregar]);
+  const semRegistro = ehAdmin || rota.tela === 'ver';
   useEffect(() => {
-    if (!carregado || ehAdmin) return;
+    if (!carregado || semRegistro) return;
     configurarPermissao(() => useApp.getState().config.enviarUso !== false);
     configurarIdentidade(() => {
       const e = useApp.getState().config.empresa;
       return { empresa: e.nome, responsavel: e.responsavel, telefone: e.telefone, cidade: e.cidade };
     });
     iniciarTelemetria();
-  }, [carregado, ehAdmin]);
+  }, [carregado, semRegistro]);
   useEffect(() => {
-    if (carregado && !ehAdmin) rastrear('tela', { tela: rota.tela });
-  }, [rota.tela, carregado, ehAdmin]);
+    if (carregado && !semRegistro) rastrear('tela', { tela: rota.tela });
+  }, [rota.tela, carregado, semRegistro]);
   // quem aceitou os termos ao criar a conta não precisa aceitar de novo
   const termosNaConta = nuvem.sessao?.user.user_metadata?.termos_aceitos_em as string | undefined;
   useEffect(() => {
     if (carregado && nuvem.puxouUmaVez && termosNaConta && !useApp.getState().config.termosAceitosEm) setConfig((c) => void (c.termosAceitosEm = Date.parse(termosNaConta) || Date.now()));
   }, [carregado, nuvem.puxouUmaVez, termosNaConta, setConfig]);
 
+  // link público do 3D: tela própria, sem login, sem menu e sem registro de uso
+  if (rota.tela === 'ver') return <Ver token={rota.token} />;
   const livre = ehAdmin || rota.tela === 'termos';
   if (nuvemAtiva && !livre) {
     if (!nuvem.pronto) return <div className="grid min-h-full place-items-center text-tinta-3">Carregando…</div>;
@@ -69,22 +74,24 @@ export default function App() {
   }
   const mostrarOnboarding = carregado && !onboardingConcluido && !ehAdmin && nuvem.puxouUmaVez;
 
-  const links: [string, string, boolean][] = [
-    ['#/projetos', 'Projetos', rota.tela === 'projetos' || rota.tela === 'editor'],
-    ['#/producao', 'Corte da semana', rota.tela === 'producao'],
-    ['#/corte', 'Corte avulso', rota.tela === 'corte'],
-    ['#/catalogo', 'Catálogo', rota.tela === 'catalogo'],
-    ['#/config', 'Configurações', rota.tela === 'config'],
+  const links: [string, string, boolean, string, React.ReactNode][] = [
+    ['#/projetos', 'Projetos', rota.tela === 'projetos' || rota.tela === 'editor', 'Projetos', <FolderOpen className="size-5" />],
+    ['#/producao', 'Corte da semana', rota.tela === 'producao', 'Semana', <Layers className="size-5" />],
+    ['#/corte', 'Corte avulso', rota.tela === 'corte', 'Avulso', <Scissors className="size-5" />],
+    ['#/catalogo', 'Catálogo', rota.tela === 'catalogo', 'Catálogo', <Package className="size-5" />],
+    ['#/config', 'Configurações', rota.tela === 'config', 'Ajustes', <Settings className="size-5" />],
   ];
+  // no celular o menu vai para baixo; no editor sai, porque o rodapé de custos ocupa esse lugar
+  const menuDeBaixo = !ehAdmin && rota.tela !== 'editor' && rota.tela !== 'termos';
 
   return (
-    <div className="min-h-full">
+    <div className={cx('min-h-full', menuDeBaixo && 'pb-[calc(60px+env(safe-area-inset-bottom))] md:pb-0')}>
       <header className="sticky top-0 z-50 flex h-[52px] items-center gap-6 border-b border-linha bg-painel px-4">
-        <a href="#/projetos" className="flex shrink-0 items-center gap-2">
+        <a href="#/projetos" className="flex min-w-0 shrink items-center gap-2">
           <Marca />
-          <span className="font-cond text-[17px] font-semibold tracking-tight">Marceneiro Inteligente</span>
+          <span className="truncate font-cond text-[17px] font-semibold tracking-tight md:hidden xl:inline">Marceneiro Inteligente</span>
         </a>
-        <nav className="flex gap-1 overflow-x-auto">
+        <nav className="hidden gap-1 overflow-x-auto md:flex">
           {links.map(([href, label, ativo]) => (
             <a key={href} href={href} className={cx('whitespace-nowrap rounded-md px-3 py-1.5 text-[13px] font-medium', ativo ? 'bg-painel-2 text-tinta' : 'text-tinta-3 hover:text-tinta')} aria-current={ativo ? 'page' : undefined}>
               {label}
@@ -116,6 +123,16 @@ export default function App() {
       {rota.tela === 'producao' && <Producao />}
       {rota.tela === 'termos' && <Termos />}
       {mostrarOnboarding && <Onboarding />}
+      {menuDeBaixo && (
+        <nav className="fixed inset-x-0 bottom-0 z-50 flex border-t border-linha bg-painel pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Menu">
+          {links.map(([href, , ativo, curto, icone]) => (
+            <a key={href} href={href} aria-current={ativo ? 'page' : undefined} className={cx('flex h-[60px] flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium', ativo ? 'text-aco' : 'text-tinta-3')}>
+              {icone}
+              {curto}
+            </a>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }

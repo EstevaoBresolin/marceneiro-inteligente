@@ -6,9 +6,11 @@ import type { Catalogo, Config } from './types';
 // Chapa padrão 2750 × 1850 mm.
 export const CATALOGO_PADRAO: Catalogo = {
   chapas: [
-    { id: 'mdf-branco-15', nome: 'MDF Branco TX 15mm', espessura: 15, largura: 2750, altura: 1850, temVeio: false, precoCentavos: 23000, cor: '#f1efe9' },
-    { id: 'mdf-branco-18', nome: 'MDF Branco TX 18mm', espessura: 18, largura: 2750, altura: 1850, temVeio: false, precoCentavos: 27000, cor: '#f1efe9' },
-    { id: 'mdf-amadeirado-15', nome: 'MDF Amadeirado 15mm', espessura: 15, largura: 2750, altura: 1850, temVeio: true, precoCentavos: 32000, cor: '#c9a27a' },
+    { id: 'mdf-branco-15', nome: 'MDF Branco TX 15mm', espessura: 15, largura: 2750, altura: 1850, temVeio: false, precoCentavos: 23000, cor: '#f1efe9', padrao: 'branco' },
+    { id: 'mdf-branco-18', nome: 'MDF Branco TX 18mm', espessura: 18, largura: 2750, altura: 1850, temVeio: false, precoCentavos: 27000, cor: '#f1efe9', padrao: 'branco' },
+    { id: 'mdf-carvalho-18', nome: 'MDF Carvalho 18mm', espessura: 18, largura: 2750, altura: 1850, temVeio: true, precoCentavos: 36000, cor: '#c49a6c', padrao: 'carvalho-natural' },
+    { id: 'mdf-grafite-18', nome: 'MDF Grafite 18mm', espessura: 18, largura: 2750, altura: 1850, temVeio: false, precoCentavos: 33000, cor: '#4a4d50', padrao: 'grafite' },
+    { id: 'mdf-amadeirado-15', nome: 'MDF Amadeirado 15mm', espessura: 15, largura: 2750, altura: 1850, temVeio: true, precoCentavos: 32000, cor: '#c9a27a', padrao: 'freijo' },
     { id: 'hdf-branco-3', nome: 'HDF Branco 3mm', espessura: 3, largura: 2750, altura: 1850, temVeio: false, precoCentavos: 6500, cor: '#e8e6e0' },
     { id: 'mdf-cru-6', nome: 'MDF Cru 6mm', espessura: 6, largura: 2750, altura: 1850, temVeio: false, precoCentavos: 9000, cor: '#c8b28f' },
   ],
@@ -24,6 +26,10 @@ export const CATALOGO_PADRAO: Catalogo = {
     { id: 'puxador', nome: 'Puxador simples', unidade: 'un', precoCentavos: 800 },
     { id: 'corredica-telescopica', nome: 'Corrediça telescópica (par)', unidade: 'par', precoCentavos: 2500 },
     { id: 'suporte-parede', nome: 'Suporte de parede (par)', unidade: 'par', precoCentavos: 900 },
+    { id: 'kit-porta-correr', nome: 'Kit roldanas para porta de correr', unidade: 'un', precoCentavos: 4500 },
+    { id: 'trilho-correr', nome: 'Trilho de alumínio para porta de correr', unidade: 'm', precoCentavos: 3200 },
+    { id: 'tubo-cabideiro', nome: 'Tubo de cabideiro oblongo', unidade: 'm', precoCentavos: 2200 },
+    { id: 'suporte-cabideiro', nome: 'Suporte de tubo de cabideiro', unidade: 'un', precoCentavos: 300 },
   ],
 };
 

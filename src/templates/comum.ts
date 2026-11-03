@@ -1,4 +1,4 @@
-import type { Bordas, Box3d, Chapa, Catalogo, Papel, Peca, TipoFuro } from '../domain/types';
+import type { Bordas, Box3d, Chapa, Catalogo, ItemFerragem, Papel, Peca, TipoFuro } from '../domain/types';
 
 /** Caixa 3D a partir dos limites (mm) */
 export function caixa(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number): Box3d {
@@ -149,4 +149,100 @@ export const fitaPorId = (catalogo: Catalogo, id: string) => catalogo.fitas.find
 export function distribuir(y0: number, y1: number, n: number, e: number): number[] {
   const vao = (y1 - y0 - n * e) / (n + 1);
   return Array.from({ length: n }, (_, k) => y0 + (k + 1) * vao + k * e);
+}
+
+/** comprimentos comerciais de corrediça telescópica, mm */
+export const CORREDICAS = [250, 300, 350, 400, 450, 500, 550, 600];
+
+export type OpcoesGavetas = {
+  /** prefixo do id: gaveta-1, gaveta-1-frente… */
+  prefixo?: string;
+  /** vão interno entre as peças que seguram a corrediça */
+  xi0: number;
+  xi1: number;
+  /** faixa de altura ocupada pelas frentes */
+  y0: number;
+  y1: number;
+  n: number;
+  /** z da frente do corpo e z de trás disponível */
+  zFrente: number;
+  zFundo: number;
+  chapa: Chapa;
+  /** chapa das frentes (padrão: a do corpo) */
+  chapaFrente?: Chapa;
+  chapaG: Chapa;
+  fundoG?: Chapa;
+  fita: string | null;
+  folgaFrente: number;
+  folgaCorredica: number;
+  puxador: boolean;
+  /** sobreposta: frente cobre o corpo por fora (largura dada); interna: frente dentro do vão, recuada */
+  modo: { tipo: 'sobreposta'; xa: number; xb: number } | { tipo: 'interna'; recuo: number };
+};
+
+/** Gavetas com corrediça telescópica: frente, caixa (2 laterais, contrafrente, traseira) e fundo. */
+export function criarGavetas(o: OpcoesGavetas): { pecas: Peca[]; ferragens: ItemFerragem[] } {
+  const g0 = o.prefixo ?? 'gaveta';
+  const pecas: Peca[] = [];
+  const ferragens: ItemFerragem[] = [];
+  const cf = o.chapaFrente ?? o.chapa;
+  const e = cf.espessura;
+  const f = o.folgaFrente;
+  const interna = o.modo.tipo === 'interna';
+  const zFrenteExt = interna ? o.zFrente - (o.modo as { recuo: number }).recuo : o.zFrente + e;
+  const zFrente0 = zFrenteExt - e;
+  const profUtil = (interna ? zFrente0 : o.zFrente) - o.zFundo - 10;
+  const corr = [...CORREDICAS].reverse().find((c) => c <= profUtil) ?? CORREDICAS[0];
+  const hFrente = Math.floor((o.y1 - o.y0 - (o.n + (interna ? 1 : 0)) * f) / o.n);
+  const [xa, xb] = o.modo.tipo === 'sobreposta' ? [o.modo.xa, o.modo.xb] : [o.xi0 + f, o.xi1 - f];
+  const wFrente = Math.floor(xb - xa);
+  const xm = (xa + xb) / 2;
+  const eg = o.chapaG.espessura;
+  const Wg = Math.floor(o.xi1 - o.xi0 - 2 * o.folgaCorredica);
+  const xc = (o.xi0 + o.xi1) / 2;
+  const hc = Math.max(60, hFrente - 40);
+  const curso = Math.round(corr * 0.75);
+  const tFundoG = o.fundoG?.espessura ?? 3;
+  const zCaixa1 = interna ? zFrente0 : o.zFrente;
+
+  for (let k = 0; k < o.n; k++) {
+    const yF = o.y0 + (interna ? f : 0) + k * (hFrente + f) + (interna ? 0 : f / 2);
+    const g = `${g0}-${k + 1}`;
+    const frente = peca({
+      id: `${g}-frente`,
+      nome: `Frente da gaveta ${k + 1}`,
+      papel: 'porta',
+      chapa: cf,
+      comprimento: wFrente,
+      largura: hFrente,
+      bordas: bordas(o.fita, { c1: true, c2: true, l1: true, l2: true }),
+      furos: [{ tipo: 'puxador', quantidade: o.puxador ? 1 : 0 }, { tipo: 'parafuso', quantidade: 4 }],
+      box3d: { ...caixa(xm - wFrente / 2, xm + wFrente / 2, yF, yF + hFrente, zFrente0, zFrenteExt), gaveta: curso },
+    });
+    pecas.push(frente);
+    ferragens.push({ ferragemId: 'corredica-telescopica', quantidade: 1, pecaId: frente.id });
+    if (o.puxador) ferragens.push({ ferragemId: 'puxador', quantidade: 1, pecaId: frente.id });
+
+    const yc = yF + 20;
+    const zc0 = zCaixa1 - corr;
+    const xg0 = xc - Wg / 2;
+    const xg1 = xc + Wg / 2;
+    const sub = (id: string, nome: string, comprimento: number, largura: number, box: Box3d, c?: Chapa, b = false): Peca => ({
+      ...peca({ id: `${g}-${id}`, nome: `Gaveta ${k + 1}: ${nome}`, papel: 'outro', chapa: c ?? o.chapaG, comprimento, largura, bordas: b ? bordas(o.fita, { c1: true }) : undefined, furos: c ? [] : [{ tipo: 'cavilha_8', quantidade: 2 }], box3d: { ...box, gaveta: curso } }),
+      dependeDe: frente.id,
+    });
+    pecas.push(
+      sub('lat-esq', 'lateral', corr, hc, caixa(xg0, xg0 + eg, yc, yc + hc, zc0, zCaixa1), undefined, true),
+      sub('lat-dir', 'lateral', corr, hc, caixa(xg1 - eg, xg1, yc, yc + hc, zc0, zCaixa1), undefined, true),
+      sub('contrafrente', 'contrafrente', Wg - 2 * eg, hc, caixa(xg0 + eg, xg1 - eg, yc, yc + hc, zCaixa1 - eg, zCaixa1)),
+      sub('traseira', 'traseira', Wg - 2 * eg, hc, caixa(xg0 + eg, xg1 - eg, yc, yc + hc, zc0, zc0 + eg), undefined, true),
+    );
+    if (o.fundoG) pecas.push(sub('fundo', 'fundo', corr, Wg, caixa(xg0, xg1, yc - tFundoG, yc, zc0, zCaixa1), o.fundoG));
+  }
+  return { pecas, ferragens };
+}
+
+/** Peça só visual de metal (trilho, tubo): não entra no corte */
+export function metal(id: string, nome: string, box: Box3d, dependeDe?: string): Peca {
+  return { id, nome, chapaId: '', comprimento: Math.round(Math.max(...box.size)), largura: Math.round(Math.min(...box.size)), quantidade: 0, podeGirar: true, bordas: { ...semBorda }, furos: [], papel: 'metal', somente3d: true, box3d: box, dependeDe };
 }

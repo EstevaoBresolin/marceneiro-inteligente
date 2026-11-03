@@ -39,6 +39,14 @@ function mesclarPadrao<T extends object>(salvo: T | undefined, padrao: T): T {
   return out as T;
 }
 
+/** catálogo salvo + itens novos das versões seguintes (ferragens usadas pelos modelos, padrão de cor das chapas conhecidas) */
+function completarCatalogo(salvo: Catalogo | undefined): Catalogo {
+  const c = mesclarPadrao(salvo, CATALOGO_PADRAO);
+  for (const f of CATALOGO_PADRAO.ferragens) if (!c.ferragens.some((x) => x.id === f.id)) c.ferragens.push(structuredClone(f));
+  for (const ch of c.chapas) if (!ch.padrao) ch.padrao = CATALOGO_PADRAO.chapas.find((x) => x.id === ch.id)?.padrao;
+  return c;
+}
+
 export const useApp = create<AppState>()(
   immer((set, get) => ({
     carregado: false,
@@ -54,9 +62,7 @@ export const useApp = create<AppState>()(
           db.projetos.orderBy('atualizadoEm').reverse().toArray(),
         ]);
         set((s) => {
-          s.catalogo = mesclarPadrao(catalogo, CATALOGO_PADRAO);
-          // ferragens novas usadas pelos modelos entram no catálogo salvo
-          for (const f of CATALOGO_PADRAO.ferragens) if (!s.catalogo.ferragens.some((x) => x.id === f.id)) s.catalogo.ferragens.push(structuredClone(f));
+          s.catalogo = completarCatalogo(catalogo);
           s.config = mesclarPadrao(config, CONFIG_PADRAO);
           s.projetos = projetos.map(normalizarProjeto);
           s.carregado = true;
@@ -143,7 +149,7 @@ export const useApp = create<AppState>()(
       });
       set((s) => {
         s.projetos = projetos;
-        if (comConfig && a.catalogo) s.catalogo = mesclarPadrao(a.catalogo, CATALOGO_PADRAO);
+        if (comConfig && a.catalogo) s.catalogo = completarCatalogo(a.catalogo);
         if (comConfig && a.config) {
           const prox = Math.max(s.config.proximoOrcamento, a.config.proximoOrcamento ?? 1);
           s.config = { ...mesclarPadrao(a.config, CONFIG_PADRAO), proximoOrcamento: prox, onboardingConcluido: true };
@@ -186,8 +192,7 @@ export const ponteStore: PonteStore = {
       const fora = new Set([...apagar, ...gravar.map((p) => p.id)]);
       s.projetos = [...gravar.map(normalizarProjeto), ...s.projetos.filter((p) => !fora.has(p.id))].sort((a, b) => b.atualizadoEm - a.atualizadoEm);
       if (catalogo) {
-        s.catalogo = mesclarPadrao(catalogo, CATALOGO_PADRAO);
-        for (const f of CATALOGO_PADRAO.ferragens) if (!s.catalogo.ferragens.some((x) => x.id === f.id)) s.catalogo.ferragens.push(structuredClone(f));
+        s.catalogo = completarCatalogo(catalogo);
       }
       if (config) s.config = mesclarPadrao(config, CONFIG_PADRAO);
     });

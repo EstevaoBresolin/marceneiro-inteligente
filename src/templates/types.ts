@@ -18,6 +18,8 @@ export type ParamDef = {
   /** só aparece quando a condição é verdadeira */
   mostrarSe?: (p: Params) => boolean;
   dica?: string;
+  /** só para tipo chapa: vazio = usa a chapa deste outro parâmetro */
+  igualA?: string;
 };
 
 export type ResultadoTemplate = {
@@ -28,7 +30,7 @@ export type ResultadoTemplate = {
   dimensoes: { largura: number; altura: number; profundidade: number };
 };
 
-export type Categoria = 'Com portas' | 'Gavetas' | 'Caixas e estantes' | 'Peças';
+export type Categoria = 'Com portas' | 'Cozinha' | 'Roupeiros' | 'Gavetas' | 'Caixas e estantes' | 'Peças';
 
 /** removidas: peças que o usuário tirou do módulo (o modelo pode se ajustar, ex.: fundo sem a lateral) */
 export type Contexto = { catalogo: Catalogo; config: Config; removidas?: Set<string> };

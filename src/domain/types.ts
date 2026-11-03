@@ -1,4 +1,4 @@
-import type { PadroesUsinagem } from './usinagem';
+import type { Furo, PadroesUsinagem } from './usinagem';
 import type { ConfigCsv } from '../export/maquina';
 // Unidades: medidas em milímetros (inteiros), dinheiro em centavos (inteiros).
 
@@ -13,6 +13,8 @@ export type Chapa = {
   temVeio: boolean;
   precoCentavos: number;
   cor: string;
+  /** cor ou padrão de madeira no 3D (ver domain/padroes.ts) */
+  padrao?: string;
   /** outros tamanhos do mesmo material (fornecedores diferentes); o plano usa o mais barato */
   tamanhos?: TamanhoChapa[];
 };
@@ -145,7 +147,8 @@ export type Bordas = {
   l2: string | null;
 };
 
-export type Papel = 'lateral' | 'tampo' | 'base' | 'prateleira' | 'fundo' | 'porta' | 'divisoria' | 'espelho' | 'outro';
+/** metal = item só visual (trilho, tubo de cabideiro) */
+export type Papel = 'lateral' | 'tampo' | 'base' | 'prateleira' | 'fundo' | 'porta' | 'divisoria' | 'espelho' | 'metal' | 'outro';
 
 export type Peca = {
   id: string;
@@ -168,7 +171,12 @@ export type Peca = {
   dependeDe?: string;
   /** peça solta adicionada pelo usuário: o 3D sai daqui (centro em mm, relativo ao módulo) */
   livre3d?: { orientacao: Orientacao; centro: [number, number, number] };
+  /** furos tirados ou colocados à mão nesta peça (copiado do módulo ao montar o projeto) */
+  ajusteFuros?: AjusteFuros;
 };
+
+/** removidos: chaves (chaveFuro) dos furos automáticos tirados; extras: furos colocados à mão */
+export type AjusteFuros = { removidos: string[]; extras: Furo[] };
 
 /** horizontal = deitada (prateleira); lateral = em pé de lado; frontal = em pé de frente */
 export type Orientacao = 'horizontal' | 'lateral' | 'frontal';
@@ -180,6 +188,8 @@ export type Box3d = {
   dobradica?: { x: number; z: number; sinal: 1 | -1 };
   /** gaveta: quanto ela corre para a frente ao abrir, mm */
   gaveta?: number;
+  /** porta de correr: quanto ela anda em x ao abrir, mm */
+  correr?: number;
 };
 
 /** pecaId (opcional): se a peça for removida, o item sai junto (ex.: dobradiças da porta) */
@@ -202,6 +212,10 @@ export type Modulo = {
   deslocamentos?: Record<string, [number, number, number]>;
   /** peças soltas que o usuário adicionou neste módulo */
   pecasExtras?: Peca[];
+  /** furação ajustada à mão, por peça (id local) */
+  ajustesFuros?: Record<string, AjusteFuros>;
+  /** ferragens ajustadas à mão, por peça (id local): quantidade de cada ferragem (0 = tirar) */
+  ajustesFerragens?: Record<string, Record<string, number>>;
 };
 
 export type Projeto = {

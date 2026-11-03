@@ -1,3 +1,4 @@
+import { SeletorPadrao } from '../components/SeletorPadrao';
 import { Plus, Trash2 } from 'lucide-react';
 import { Fragment, type ReactNode } from 'react';
 import { DinheiroInput, NumeroInput, Painel, Selecao, TextoInput, Titulo } from '../components/ui';
@@ -81,7 +82,7 @@ export function Catalogo() {
               <input type="checkbox" aria-label="Tem veio" className="size-4 accent-aco" checked={ch.temVeio} onChange={(e) => setCatalogo((c) => void (c.chapas[i].temVeio = e.target.checked))} />
             </td>
             <td className={td}>
-              <input type="color" aria-label="Cor no 3D" className="h-8 w-12 cursor-pointer rounded border border-linha" value={ch.cor} onChange={(e) => setCatalogo((c) => void (c.chapas[i].cor = e.target.value))} />
+              <SeletorPadrao chapa={ch} onChange={(padrao, cor) => setCatalogo((c) => void ((c.chapas[i].padrao = padrao), (c.chapas[i].cor = cor)))} />
             </td>
             <Remover nome={ch.nome} onClick={() => setCatalogo((c) => void c.chapas.splice(i, 1))} />
           </tr>

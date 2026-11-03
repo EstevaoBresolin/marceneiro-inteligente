@@ -31,6 +31,7 @@ export function TextoTermos() {
       <ul className="list-disc space-y-1 pl-5">
         <li>o seu e-mail de acesso e o nome da marcenaria, o seu nome, WhatsApp e cidade, que você preenche no cadastro;</li>
         <li>registros simples de uso, como "abriu o sistema", "criou um projeto", "gerou um orçamento" ou "deu erro nesta tela", com data e hora. <b>Não</b> recebemos medidas, valores, nem nomes ou dados dos seus clientes;</li>
+        <li>se você mandar o link do 3D para um cliente: o que vai no link (o móvel em 3D, os acabamentos e, se você deixar, o valor) e o nome e o comentário que o cliente escrever ao aprovar. Quem tem o link consegue abrir; você pode desligar o link a qualquer momento;</li>
         <li>as mensagens de feedback que você mandar e, se você deixar marcado, o print da tela naquele momento. Cuidado: o print mostra o que estiver na tela.</li>
       </ul>
       <p>

@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { encaixar, moduloDaPeca, type Limites, type Vec3 } from '../domain/composicao';
 import type { Chapa, Peca } from '../domain/types';
+import { padraoPorId, type Padrao } from '../domain/padroes';
+import { geometriaComVeio, texturaDoPadrao } from './texturas';
 
 export type Vista = 'iso' | 'frente' | 'lado' | 'topo';
 export type Ferramenta = 'cursor' | 'mao';
@@ -61,6 +63,7 @@ type Destaque = 'nenhum' | 'hover' | 'modulo' | 'peca' | 'conflito' | 'passo';
 type PecaMeshProps = {
   peca: Peca;
   cor: string;
+  padrao?: Padrao;
   opcoes: OpcoesCena;
   centro: THREE.Vector3;
   destaque: Destaque;
@@ -69,11 +72,21 @@ type PecaMeshProps = {
   onHover: (id: string | null) => void;
 };
 
-function PecaMesh({ peca, cor, opcoes, centro, destaque, onPointerDown, onDoubleClick, onHover }: PecaMeshProps) {
+function PecaMesh({ peca, cor, padrao, opcoes, centro, destaque, onPointerDown, onDoubleClick, onHover }: PecaMeshProps) {
   const grupo = useRef<THREE.Group>(null);
   const box = peca.box3d!;
   const dob = box.dobradica;
   const espelho = peca.papel === 'espelho';
+  const ehMetal = peca.papel === 'metal';
+  // o veio segue o comprimento da peça (o eixo da caixa com essa medida)
+  const eixoVeio = useMemo(() => {
+    const s = box.size;
+    const porComp = [0, 1, 2].find((k) => Math.abs(s[k] - peca.comprimento) < 1.5);
+    return (porComp ?? (s[0] >= s[1] && s[0] >= s[2] ? 0 : s[1] >= s[2] ? 1 : 2)) as 0 | 1 | 2;
+  }, [box.size[0], box.size[1], box.size[2], peca.comprimento]); // eslint-disable-line react-hooks/exhaustive-deps
+  const textura = useMemo(() => (espelho || ehMetal ? null : texturaDoPadrao(padrao)), [padrao, espelho, ehMetal]);
+  const geometria = useMemo(() => (textura ? geometriaComVeio(box.size, eixoVeio) : new THREE.BoxGeometry(...box.size)), [textura, eixoVeio, box.size[0], box.size[1], box.size[2]]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => geometria.dispose(), [geometria]);
 
   // posição relativa ao pivô da dobradiça (se houver)
   const pivo = useMemo(() => new THREE.Vector3(dob ? dob.x : 0, 0, dob ? dob.z : 0), [dob?.x, dob?.z]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -81,6 +94,7 @@ function PecaMesh({ peca, cor, opcoes, centro, destaque, onPointerDown, onDouble
   const deslocExplodido = useMemo(() => new THREE.Vector3(...box.pos).sub(centro).multiplyScalar(0.45), [box.pos[0], box.pos[1], box.pos[2], centro]); // eslint-disable-line react-hooks/exhaustive-deps
   const primeiro = useRef(true);
   const gaveta = useRef(0);
+  const correr = useRef(0);
 
   useFrame((_, dt) => {
     const g = grupo.current;
@@ -89,7 +103,8 @@ function PecaMesh({ peca, cor, opcoes, centro, destaque, onPointerDown, onDouble
     const alvoRot = dob && opcoes.portaAberta ? dob.sinal * THREE.MathUtils.degToRad(105) : 0;
     g.rotation.y += (alvoRot - g.rotation.y) * k;
     gaveta.current += ((box.gaveta && opcoes.portaAberta ? box.gaveta : 0) - gaveta.current) * k;
-    const alvo = (opcoes.explodida ? deslocExplodido.clone().add(pivo) : pivo.clone()).add(new THREE.Vector3(0, 0, gaveta.current));
+    correr.current += ((box.correr && opcoes.portaAberta ? box.correr : 0) - correr.current) * k;
+    const alvo = (opcoes.explodida ? deslocExplodido.clone().add(pivo) : pivo.clone()).add(new THREE.Vector3(correr.current, 0, gaveta.current));
     // arraste e medidas acompanham na hora; só a explosão é animada
     if (opcoes.explodida && !primeiro.current) g.position.lerp(alvo, k);
     else g.position.copy(alvo);
@@ -97,7 +112,7 @@ function PecaMesh({ peca, cor, opcoes, centro, destaque, onPointerDown, onDouble
   });
 
   const transparente = opcoes.transparente && (peca.papel === 'porta' || espelho || peca.papel === 'lateral');
-  const corBorda = destaque === 'conflito' ? '#c0392b' : destaque === 'passo' ? '#b5641f' : destaque === 'peca' || destaque === 'modulo' ? AZUL : destaque === 'hover' ? AZUL_HOVER : espelho ? '#8aa5b3' : '#7e6a55';
+  const corBorda = destaque === 'conflito' ? '#c0392b' : destaque === 'passo' ? '#b5641f' : destaque === 'peca' || destaque === 'modulo' ? AZUL : destaque === 'hover' ? AZUL_HOVER : espelho ? '#8aa5b3' : ehMetal ? '#8b9196' : padrao && padrao.tipo !== 'liso' ? '#5a4632' : '#7e6a55';
 
   return (
     <group ref={grupo} position={pivo}>
@@ -113,13 +128,23 @@ function PecaMesh({ peca, cor, opcoes, centro, destaque, onPointerDown, onDouble
         }}
         onPointerOut={() => onHover(null)}
       >
-        <boxGeometry args={box.size} />
-        {espelho ? (
+        <primitive object={geometria} attach="geometry" />
+        {ehMetal ? (
+          <meshStandardMaterial color={destaque === 'peca' ? '#9cc3dc' : '#b9bec2'} metalness={0.85} roughness={0.28} envMapIntensity={1.2} />
+        ) : espelho ? (
           <meshStandardMaterial color={destaque === 'peca' ? '#b9d4e6' : '#dbe7ec'} metalness={0.65} roughness={0.12} envMapIntensity={1.4} transparent={transparente} opacity={transparente ? 0.25 : 1} />
         ) : (
-          <meshStandardMaterial color={destaque === 'peca' ? '#9cc3dc' : destaque === 'passo' ? '#f3c98f' : destaque === 'conflito' ? '#f2b8ae' : cor} roughness={0.75} transparent={transparente} opacity={transparente ? 0.22 : 1} depthWrite={!transparente} />
+          <meshStandardMaterial
+            key={textura ? 'tex' : 'liso'}
+            map={textura}
+            color={destaque === 'peca' ? '#9cc3dc' : destaque === 'passo' ? '#f3c98f' : destaque === 'conflito' ? '#f2b8ae' : textura ? '#ffffff' : (padrao?.base ?? cor)}
+            roughness={padrao?.brilho ? 0.75 - 0.6 * padrao.brilho : 0.75}
+            transparent={transparente}
+            opacity={transparente ? 0.22 : 1}
+            depthWrite={!transparente}
+          />
         )}
-        <Edges threshold={15} color={corBorda} lineWidth={destaque === 'nenhum' ? 1 : 2} />
+        <Edges geometry={geometria} threshold={15} color={corBorda} lineWidth={destaque === 'nenhum' ? 1 : 2} />
       </mesh>
     </group>
   );
@@ -140,11 +165,13 @@ function Cota({ de, ate, texto, cor = '#b5895a' }: { de: Vec3; ate: Vec3; texto:
 }
 
 function Camera({ vista, seq, lim, controles }: { vista: Vista; seq: number; lim: Limites; controles: React.RefObject<OrbitControlsImpl | null> }) {
-  const { camera } = useThree();
+  const { camera, size } = useThree();
   useEffect(() => {
     const tam = [0, 1, 2].map((i) => (lim.max[i] - lim.min[i]) * S);
     const maior = Math.max(...tam, 0.3);
-    const d = maior * 2.6;
+    // tela em pé (celular): o campo de visão na horizontal é estreito, então a câmera se afasta
+    const aspecto = size.width / Math.max(1, size.height);
+    const d = maior * 2.6 * (aspecto < 1.1 ? Math.min(2.4, 1.1 / aspecto) : 1);
     const alvo = new THREE.Vector3(((lim.min[0] + lim.max[0]) / 2) * S, ((lim.min[1] + lim.max[1]) / 2) * S, ((lim.min[2] + lim.max[2]) / 2) * S);
     const off: Record<Vista, THREE.Vector3> = {
       iso: new THREE.Vector3(d * 0.75, d * 0.45, d * 0.95),
@@ -351,6 +378,7 @@ function Conteudo(props: Props & { controles: React.RefObject<OrbitControlsImpl 
 
   const visiveis = pecas.filter((p) => p.box3d);
   const cor = (p: Peca) => chapas.find((c) => c.id === p.chapaId)?.cor ?? '#eeeeee';
+  const padraoDe = (p: Peca) => padraoPorId(chapas.find((c) => c.id === p.chapaId)?.padrao);
   const L = lim.max[0] - lim.min[0];
   const A = lim.max[1] - lim.min[1];
   const P = lim.max[2] - lim.min[2];
@@ -376,7 +404,7 @@ function Conteudo(props: Props & { controles: React.RefObject<OrbitControlsImpl 
     <>
       <group scale={S}>
         {visiveis.map((p) => (
-          <PecaMesh key={p.id} peca={p} cor={cor(p)} opcoes={opcoes} centro={centro} destaque={destaqueDe(p)} onPointerDown={onPointerDown} onDoubleClick={onDoubleClick} onHover={setHover} />
+          <PecaMesh key={p.id} peca={p} cor={cor(p)} padrao={padraoDe(p)} opcoes={opcoes} centro={centro} destaque={destaqueDe(p)} onPointerDown={onPointerDown} onDoubleClick={onDoubleClick} onHover={setHover} />
         ))}
         {opcoes.cotas && props.limites && !opcoes.explodida && (
           <>

@@ -10,6 +10,7 @@ const PARAMS_ARMARIO: ParamDef[] = [
   { id: 'altura', label: 'Altura', tipo: 'numero', padrao: 600, unidade: 'mm', min: 250, max: 2400, passo: 10 },
   { id: 'profundidade', label: 'Profundidade', tipo: 'numero', padrao: 150, unidade: 'mm', min: 80, max: 650, passo: 5, dica: 'Profundidade do corpo, sem a porta.' },
   { id: 'chapaId', label: 'Chapa do corpo', tipo: 'chapa', padrao: 'mdf-branco-15' },
+  { id: 'chapaPortaId', label: 'Chapa das portas', tipo: 'chapa', padrao: '', igualA: 'chapaId' },
   { id: 'prateleiras', label: 'Prateleiras internas', tipo: 'numero', padrao: 2, min: 0, max: 8, passo: 1 },
   { id: 'portas', label: 'Portas', tipo: 'opcoes', padrao: '1', opcoes: [{ valor: '1', label: '1 porta' }, { valor: '2', label: '2 portas' }] },
   {
@@ -83,6 +84,7 @@ function validarArmario(p: Params, { catalogo }: Contexto) {
 /** Corpo + prateleiras + portas. Usado pelo armário de banheiro e pelo armário com portas. */
 export function gerarArmario(p: Params, { catalogo, config, removidas }: Contexto): ResultadoTemplate {
   const chapa = chapaPorId(catalogo, str(p, 'chapaId'));
+  const chapaPorta = str(p, 'chapaPortaId') ? chapaPorId(catalogo, str(p, 'chapaPortaId')) : chapa;
   const fita = fitaPorId(catalogo, str(p, 'fitaId'));
   const L = num(p, 'largura');
   const A = num(p, 'altura');
@@ -145,7 +147,7 @@ export function gerarArmario(p: Params, { catalogo, config, removidas }: Context
   const wPorta = Math.floor(nPortas === 1 ? L - 2 * f : (L - 3 * f) / 2);
   const nDob = dobradicasPorPorta(hPorta);
   const portaDeEspelho = espelho === 'porta_espelho';
-  const espPorta = portaDeEspelho ? ESPESSURA_ESPELHO : e;
+  const espPorta = portaDeEspelho ? ESPESSURA_ESPELHO : chapaPorta.espessura;
   const m = 3; // espelho colado fica 3 mm menor que a porta em cada lado
 
   const portasX: { xa: number; xb: number; xHinge: number; sinal: 1 | -1; nome: string }[] =
@@ -174,7 +176,7 @@ export function gerarArmario(p: Params, { catalogo, config, removidas }: Context
         id,
         nome: px.nome,
         papel: 'porta',
-        chapa,
+        chapa: chapaPorta,
         comprimento: hPorta,
         largura: wPorta,
         bordas: bordas(fita, { c1: true, c2: true, l1: true, l2: true }),
@@ -185,7 +187,7 @@ export function gerarArmario(p: Params, { catalogo, config, removidas }: Context
     ferragens.push({ ferragemId: 'dobradica-35', quantidade: nDob, pecaId: id });
     if (bool(p, 'puxador')) ferragens.push({ ferragemId: 'puxador', quantidade: 1, pecaId: id });
     if (espelho === 'colado') {
-      const bx = caixa(px.xa + m, px.xb - m, yPorta0 + m, yPorta0 + hPorta - m, P + e, P + e + ESPESSURA_ESPELHO);
+      const bx = caixa(px.xa + m, px.xb - m, yPorta0 + m, yPorta0 + hPorta - m, P + espPorta, P + espPorta + ESPESSURA_ESPELHO);
       bx.dobradica = box.dobradica;
       const eid = `espelho-${i + 1}`;
       pecas.push({ ...peca({ id: eid, nome: 'Espelho', papel: 'espelho', chapa, comprimento: hPorta - 2 * m, largura: wPorta - 2 * m, box3d: bx, podeGirar: false }), somente3d: true, quantidade: 0, dependeDe: id });

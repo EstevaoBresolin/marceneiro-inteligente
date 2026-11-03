@@ -7,6 +7,7 @@ export const COR_FURO: Record<TipoUsinagem, string> = {
   calco: '#7e5a36',
   pino: '#3d7a4f',
   puxador: '#59646a',
+  outro: '#8e44ad',
 };
 
 export type FuroDesenho = { x: number; y: number; r: number; cor: string; faceVisivel: boolean; tipo: TipoUsinagem };

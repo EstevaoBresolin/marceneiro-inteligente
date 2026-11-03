@@ -12,9 +12,9 @@
  * da largura (a partir do lado C1, que é a frente quando a largura vai em profundidade).
  */
 import type { Vec3 } from './composicao';
-import type { Peca } from './types';
+import type { Peca, TipoFuro } from './types';
 
-export type TipoUsinagem = 'cavilha' | 'caneco' | 'calco' | 'pino' | 'puxador';
+export type TipoUsinagem = 'cavilha' | 'caneco' | 'calco' | 'pino' | 'puxador' | 'outro';
 export type Borda = 'c1' | 'c2' | 'l1' | 'l2';
 
 export type Furo = {
@@ -29,6 +29,8 @@ export type Furo = {
   lado?: 1 | -1;
   diametro: number;
   profundidade: number | 'passante';
+  /** colocado à mão */
+  manual?: boolean;
 };
 
 export const NOMES_USINAGEM: Record<TipoUsinagem, string> = {
@@ -37,7 +39,14 @@ export const NOMES_USINAGEM: Record<TipoUsinagem, string> = {
   calco: 'Calço da dobradiça',
   pino: 'Pino de prateleira',
   puxador: 'Puxador',
+  outro: 'Outro furo',
 };
+
+/** identifica um furo automático para poder tirá-lo à mão (sobrevive a recálculos se a posição não mudar) */
+export const chaveFuro = (f: Furo) => `${f.tipo}|${f.onde}|${Math.round(f.x)}|${Math.round(f.y)}|${f.borda ?? f.lado ?? ''}`;
+
+/** tipo de furo usado no custo (Peca.furos) para cada usinagem */
+export const TIPO_CUSTO: Record<TipoUsinagem, TipoFuro | null> = { cavilha: 'cavilha_8', caneco: 'dobradica_35', calco: null, pino: 'outro', puxador: 'puxador', outro: 'outro' };
 
 /** distâncias e diâmetros da furação: cada marcenaria configura os seus */
 export type PadroesUsinagem = {
@@ -217,6 +226,15 @@ export function calcularFuracao(pecas: Peca[], u: PadroesUsinagem = USINAGEM_PAD
       const yDob = paraPeca(p, e, [d.x, lp.min[1], lp.max[2]]).y;
       add(p.id, { tipo: 'puxador', onde: 'face', x: p.comprimento / 2, y: yDob < 1 ? p.largura - u.puxador.daBorda : u.puxador.daBorda, lado: 1, diametro: u.puxador.diametro, profundidade: 'passante' });
     } else add(p.id, { tipo: 'puxador', onde: 'face', x: p.comprimento / 2, y: p.largura / 2, lado: 1, diametro: u.puxador.diametro, profundidade: 'passante' });
+  }
+
+  // ---------- ajustes feitos à mão ----------
+  for (const p of comCaixa) {
+    const a = p.ajusteFuros;
+    if (!a) continue;
+    const tirar = new Set(a.removidos);
+    const lista = (furos.get(p.id) ?? []).filter((f) => !tirar.has(chaveFuro(f)));
+    furos.set(p.id, [...lista, ...a.extras.map((f) => ({ ...f, manual: true }))]);
   }
 
   return furos;

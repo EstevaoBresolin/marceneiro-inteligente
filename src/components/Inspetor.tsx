@@ -1,4 +1,4 @@
-import { Copy, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { CircleDot, Copy, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type { ModuloMontado } from '../domain/composicao';
 import type { Chapa, Orientacao, Peca } from '../domain/types';
 import { Botao, Segmentos } from './ui';
@@ -16,6 +16,7 @@ type Props = {
   onAdicionarTabua: () => void;
   onDuplicarModulo: () => void;
   onRemoverModulo: () => void;
+  onFuros?: () => void;
 };
 
 /** Cartão flutuante sobre o 3D com o que está selecionado */
@@ -46,6 +47,11 @@ export function Inspetor({ peca, modulo, chapas, deslocada, solta, varios, ...a 
           </div>
         )}
         <div className="mt-2 flex flex-wrap gap-1">
+          {a.onFuros && !peca.somente3d && (
+            <Botao tamanho="sm" variante="fantasma" onClick={a.onFuros}>
+              <CircleDot className="size-3.5" /> Furos e ferragens
+            </Botao>
+          )}
           <Botao tamanho="sm" variante="perigo" onClick={a.onRemoverPeca} title="Delete">
             <Trash2 className="size-3.5" /> Remover peça
           </Botao>

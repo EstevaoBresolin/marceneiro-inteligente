@@ -8,6 +8,7 @@ import { itensDoOrcamento, materiaisDoOrcamento } from '../domain/orcamento';
 import type { Catalogo, Cliente, Config, Orcamento, Projeto, StatusOrcamento } from '../domain/types';
 import { dataValidade, numeroOrcamento } from '../export/orcamentoCliente';
 import { rastrear } from '../lib/telemetria';
+import { LinkCliente } from './LinkCliente';
 import { Botao, Campo, DinheiroInput, Interruptor, NumeroInput, Selecao, TextoInput, cx } from './ui';
 
 const STATUS: { valor: StatusOrcamento; label: string; cor: string }[] = [
@@ -213,6 +214,8 @@ export function OrcamentoView({ projeto, orcamento: o, montado, custos, config, 
           </a>
           <p className="text-[11px] text-tinta-3">O WhatsApp abre com a mensagem pronta; anexe o PDF baixado na conversa.</p>
         </div>
+
+        <LinkCliente projeto={projeto} montado={montado} catalogo={catalogo} config={config} valorCentavos={total} onAprovado={() => setO('status', 'aprovado')} />
       </aside>
     </div>
   );

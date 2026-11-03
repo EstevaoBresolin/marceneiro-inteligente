@@ -1,6 +1,7 @@
 import { TEMPLATES, templatePorId, type Contexto, type Params, type Template } from '../templates';
 import { boxDaTabua } from '../templates/outros';
-import type { Box3d, Extra, ItemFerragem, Modulo, Peca, Projeto } from './types';
+import type { AjusteFuros, Box3d, Extra, ItemFerragem, Modulo, Peca, Projeto } from './types';
+import { TIPO_CUSTO } from './usinagem';
 
 export type Vec3 = [number, number, number];
 export type Limites = { min: Vec3; max: Vec3 };
@@ -87,6 +88,33 @@ function mesclar(geradas: Peca[], salvas: Peca[]): Peca[] {
   });
 }
 
+/** furos tirados/colocados à mão: a peça leva o ajuste (para os desenhos) e o custo dos furos acompanha */
+function comAjusteFuros(p: Peca, a: AjusteFuros | undefined): Peca {
+  if (!a || (!a.removidos.length && !a.extras.length)) return p;
+  const furos = p.furos.map((f) => ({ ...f }));
+  const somar = (tipo: string | null, d: number) => {
+    if (!tipo) return;
+    const f = furos.find((x) => x.tipo === tipo);
+    if (f) f.quantidade = Math.max(0, f.quantidade + d);
+    else if (d > 0) furos.push({ tipo: tipo as Peca['furos'][number]['tipo'], quantidade: d });
+  };
+  for (const k of a.removidos) somar(TIPO_CUSTO[k.split('|')[0] as keyof typeof TIPO_CUSTO] ?? null, -1);
+  for (const f of a.extras) somar(TIPO_CUSTO[f.tipo], 1);
+  return { ...p, furos: furos.filter((f) => f.quantidade > 0), ajusteFuros: a };
+}
+
+/** quantidades de ferragem trocadas à mão por peça; ferragem nova entra ligada à peça */
+function aplicarAjustesFerragens(lista: ItemFerragem[], ajustes: Modulo['ajustesFerragens'], existentes: Set<string>): ItemFerragem[] {
+  if (!ajustes) return lista;
+  const out = lista.map((f) => (f.pecaId && ajustes[f.pecaId]?.[f.ferragemId] !== undefined ? { ...f, quantidade: ajustes[f.pecaId][f.ferragemId] } : f));
+  for (const [pecaId, porFerragem] of Object.entries(ajustes)) {
+    if (!existentes.has(pecaId)) continue;
+    for (const [ferragemId, quantidade] of Object.entries(porFerragem))
+      if (!out.some((f) => f.pecaId === pecaId && f.ferragemId === ferragemId)) out.push({ ferragemId, quantidade, pecaId });
+  }
+  return out.filter((f) => f.quantidade > 0);
+}
+
 export function montarProjeto(p: Projeto, ctx: Contexto): ProjetoMontado {
   if (p.templateId === 'livre') return { pecas: p.pecas, ferragens: p.ferragens, extras: p.extras, modulos: [], limites: null, erros: [] };
 
@@ -127,13 +155,13 @@ export function montarProjeto(p: Projeto, ctx: Contexto): ProjetoMontado {
     montados.push({ modulo: m, template: t, limitesLocais: local, limites: somar(local, m.posicao), corpo: somar(corpoLocal, m.posicao), erros: errosMod, removidas: removidas.size });
     for (const x of locais)
       pecas.push({
-        ...x,
+        ...comAjusteFuros(x, m.ajustesFuros?.[x.id]),
         id: `${m.id}${SEP}${x.id}`,
         nome: varios ? `${m.nome}: ${x.nome}` : x.nome,
         box3d: x.box3d ? transladar(x.box3d, m.posicao) : undefined,
         dependeDe: x.dependeDe ? `${m.id}${SEP}${x.dependeDe}` : undefined,
       });
-    ferragens.push(...r.ferragens.filter((f) => !f.pecaId || !removidas.has(f.pecaId)).map((f) => ({ ...f, pecaId: f.pecaId ? `${m.id}${SEP}${f.pecaId}` : undefined, moduloId: m.id })));
+    ferragens.push(...aplicarAjustesFerragens(r.ferragens.filter((f) => !f.pecaId || !removidas.has(f.pecaId)), m.ajustesFerragens, new Set(locais.map((x) => x.id))).map((f) => ({ ...f, pecaId: f.pecaId ? `${m.id}${SEP}${f.pecaId}` : undefined, moduloId: m.id })));
     extras.push(...r.extras.filter((e) => !e.pecaId || !removidas.has(e.pecaId)).map((e) => (varios ? { ...e, descricao: `${m.nome}: ${e.descricao}` } : e)));
   }
 

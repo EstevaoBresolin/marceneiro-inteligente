@@ -28,7 +28,7 @@ Funções em `api/` (`eventos`, `feedback`, `admin`); sem `BLOB_READ_WRITE_TOKEN
 
 ## O que já funciona (Fase 1)
 
-- **Modelos paramétricos** (15): armário de banheiro com espelho, armário com portas, aéreo, balcão, gaveteiro (corrediça telescópica), criado-mudo, cômoda, nicho, estante com divisórias, rack de TV, sapateira, livreiro, prateleira, painel/tampo avulso, suporte de monitor, além da lista livre.
+- **Modelos paramétricos** (22, contando roupeiros e cozinha): armário de banheiro com espelho, armário com portas, aéreo, balcão, gaveteiro (corrediça telescópica), criado-mudo, cômoda, nicho, estante com divisórias, rack de TV, sapateira, livreiro, prateleira, painel/tampo avulso, suporte de monitor, além da lista livre.
 - **Peças editáveis dentro do módulo**: cada peça física é uma linha. Remova qualquer peça (a porta leva junto espelho, dobradiças e custo do espelho), mova peças no 3D, adicione tábuas soltas. Tirar a lateral que encosta num vizinho faz o módulo deslizar e dividir a lateral do vizinho.
 - **Edição no 3D estilo Figma**: ferramenta cursor (V) seleciona e arrasta, mão (H ou segurar espaço) gira a vista. Clique seleciona o módulo, clique de novo entra na peça. Delete remove, Esc sai, setas movem 1 mm (Shift: 10 mm), Ctrl+Z/Ctrl+Shift+Z desfaz/refaz, Ctrl+D duplica, Alt arrasta sem encaixe.
 - **Alças no 3D**: com o módulo selecionado, puxe as bolinhas das faces para mudar largura, altura ou profundidade (encaixa nas faces vizinhas; Alt = sem encaixe). Tábuas soltas também têm alças.
@@ -52,6 +52,16 @@ Funções em `api/` (`eventos`, `feedback`, `admin`); sem `BLOB_READ_WRITE_TOKEN
 - O que já estava no navegador antes do login sobe para a primeira conta que entrar. Entrar com outra conta limpa o navegador antes; "Sair" também.
 - Variáveis: `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` (veja `.env.example`). Sem elas o app roda só local, sem login.
 - Esquema em `supabase/migrations/`.
+
+## Vender e produzir (Fase 3)
+
+- **Celular e tablet**: menu embaixo no celular, editor com o 3D em cima e "Medidas e opções" recolhido, abas e barra do 3D que rolam, toque gira a vista.
+- **Roupeiro**: portas de correr sobrepostas (2 trilhos, roldanas e trilho de alumínio em metros), portas de abrir, colunas, cabideiro (tubo em metros + suportes), gavetas internas e maleiro.
+- **Cozinha**: balcão de pia (sem tampo, travessas para a pedra, sem fundo), balcão de canto e aéreo de canto (parte cega + porta), torre de forno (gavetas, vão do forno, vão do micro-ondas e porta em cima).
+- **Chapa das portas e frentes** separada da chapa do corpo em todos os móveis com porta ou gaveta.
+- **Cor e padrão do MDF no 3D**: cores lisas, madeiras e cimento desenhados pelo próprio sistema (`domain/padroes.ts`, `viewer3d/texturas.ts`); o veio segue o comprimento da peça. Escolha por chapa no Catálogo.
+- **Furos e ferragens por peça**: na aba Desenhos ou no 3D (peça selecionada → "Furos e ferragens"): tirar furos automáticos, colocar furos à mão, mudar/tirar/adicionar ferragens. Vale para as peças iguais; custo, desenhos e DXF acompanham. Fica em `Modulo.ajustesFuros` e `Modulo.ajustesFerragens`.
+- **Link do 3D para o cliente** (aba Orçamento): a marcenaria cria um link `#/ver/<token>`; o cliente abre no celular sem login, gira, abre as portas, vê acabamentos e (opcional) o valor, e aprova com nome e comentário. O orçamento passa para "Aprovado" sozinho. Tabela `compartilhamentos` com RLS; o cliente só acessa pelas funções `ver_compartilhamento` e `aprovar_compartilhamento`.
 
 ## Recursos de oficina (Fase 2)
 

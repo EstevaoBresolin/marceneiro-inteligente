@@ -146,14 +146,14 @@ export function Interruptor({ ligado, onChange, label }: { ligado: boolean; onCh
 
 export function Abas<T extends string>({ valor, onChange, abas }: { valor: T; onChange: (v: T) => void; abas: { id: T; label: ReactNode }[] }) {
   return (
-    <div className="flex gap-1 border-b border-linha px-3" role="tablist">
+    <div className="flex gap-1 overflow-x-auto border-b border-linha px-3 [scrollbar-width:none]" role="tablist">
       {abas.map((a) => (
         <button
           key={a.id}
           role="tab"
           aria-selected={valor === a.id}
           onClick={() => onChange(a.id)}
-          className={cx('relative h-10 px-3 text-[13px] font-medium transition-colors', valor === a.id ? 'text-tinta' : 'text-tinta-3 hover:text-tinta-2')}
+          className={cx('relative h-10 shrink-0 whitespace-nowrap px-3 text-[13px] font-medium transition-colors', valor === a.id ? 'text-tinta' : 'text-tinta-3 hover:text-tinta-2')}
         >
           {a.label}
           {valor === a.id && <span className="absolute inset-x-2 -bottom-px h-0.5 bg-mdf" />}

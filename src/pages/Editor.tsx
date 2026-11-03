@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeft, Box, Camera, DoorOpen, Eye, FileDown, FileSpreadsheet, Hand, Image, Layers, MousePointer2, Plus, Redo2, Ruler, Trash2, Undo2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Box, ChevronDown, Camera, DoorOpen, Eye, FileDown, FileSpreadsheet, Hand, Image, Layers, MousePointer2, Plus, Redo2, Ruler, Trash2, Undo2 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CustosView } from '../components/CustosView';
 import { OrcamentoView } from '../components/OrcamentoView';
@@ -7,7 +7,9 @@ import { rastrear } from '../lib/telemetria';
 import { ExportarMaquina } from '../components/ExportarMaquina';
 import { DesenhosView } from '../components/DesenhosView';
 import { ManualView } from '../components/ManualView';
-import { numerarPecas } from '../domain/usinagem';
+import { calcularFuracao, chaveFuro, numerarPecas, type Furo } from '../domain/usinagem';
+import { EditorFuros } from '../components/EditorFuros';
+import { assinaturaDesenho } from '../cutplan/desenho';
 import { Inspetor } from '../components/Inspetor';
 import { PainelModulos } from '../components/PainelModulos';
 import { TabelaPecas } from '../components/TabelaPecas';
@@ -34,7 +36,7 @@ import {
   type Vec3,
 } from '../domain/composicao';
 import { brl, fmtNum, novoId } from '../domain/money';
-import type { Modulo, Orientacao, Peca, Projeto } from '../domain/types';
+import type { AjusteFuros, Modulo, Orientacao, Peca, Projeto } from '../domain/types';
 import { ir } from '../lib/router';
 import { usePlanoCorte } from '../lib/usePlanoCorte';
 import { useApp } from '../store/app';
@@ -53,7 +55,9 @@ export function Editor({ id }: { id: string }) {
   const original = projetos.find((p) => p.id === id);
   const [p, setP] = useState<Projeto | null>(original ? normalizarProjeto(original) : null);
   const [sel, setSel] = useState<Selecao>(NADA);
-  const [ferramenta, setFerramenta] = useState<Ferramenta>('cursor');
+  // no toque, arrastar o dedo gira a vista; selecionar e mover fica para quem trocar a ferramenta
+  const [ferramenta, setFerramenta] = useState<Ferramenta>(() => (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 'mao' : 'cursor'));
+  const [paramsAbertos, setParamsAbertos] = useState(() => typeof matchMedia === 'undefined' || matchMedia('(min-width: 1024px)').matches);
   const [espaco, setEspaco] = useState(false);
   const [aba, setAba] = useState<Aba>('pecas');
   const [opcoes, setOpcoes] = useState<OpcoesCena>({ portaAberta: false, explodida: false, transparente: false, cotas: true });
@@ -94,6 +98,21 @@ export function Editor({ id }: { id: string }) {
   const lote = Math.max(1, p?.quantidadeLote ?? 1);
   const conflitos = useMemo(() => detectarConflitos(pecas), [pecas]);
   const numeros = useMemo(() => numerarPecas(pecas), [pecas]);
+  // ---------- furos e ferragens ajustados à mão ----------
+  const [editandoFuros, setEditandoFuros] = useState<string | null>(null);
+  const furacao = useMemo(() => (editandoFuros ? calcularFuracao(pecas, config.usinagem) : null), [editandoFuros, pecas, config.usinagem]);
+  /** peças iguais (mesmo desenho) recebem o mesmo ajuste */
+  const iguaisA = useCallback(
+    (id: string) => {
+      if (!furacao) return [id];
+      const alvo = pecas.find((x) => x.id === id);
+      if (!alvo) return [id];
+      const k = assinaturaDesenho(alvo, furacao.get(id) ?? []);
+      const ids = pecas.filter((x) => !x.somente3d && x.box3d && assinaturaDesenho(x, furacao.get(x.id) ?? []) === k).map((x) => x.id);
+      return ids.length ? ids : [id];
+    },
+    [furacao, pecas],
+  );
   const [exportarManual, setExportarManual] = useState(false);
   const [verConflitos, setVerConflitos] = useState(false);
   const marcadas = useMemo(() => Object.fromEntries(conflitos.flatMap((c) => [[c.a, 'conflito' as const], [c.b, 'conflito' as const]])), [conflitos]);
@@ -147,6 +166,38 @@ export function Editor({ id }: { id: string }) {
 
   // ---------- módulos ----------
   const alterarModulo = useCallback((mid: string, fn: (m: Modulo) => Modulo) => atualizar((x) => ({ ...x, modulos: (x.modulos ?? []).map((m) => (m.id === mid ? fn(m) : m)) })), [atualizar]);
+  const ajustarFuros = useCallback(
+    (ids: string[], fn: (a: AjusteFuros) => AjusteFuros) =>
+      atualizar((x) => ({
+        ...x,
+        modulos: (x.modulos ?? []).map((m) => {
+          const meus = ids.filter((id) => moduloDaPeca(id) === m.id).map(idLocal);
+          if (!meus.length) return m;
+          const aj = { ...(m.ajustesFuros ?? {}) };
+          for (const l of meus) {
+            const novo = fn(aj[l] ?? { removidos: [], extras: [] });
+            if (!novo.removidos.length && !novo.extras.length) delete aj[l];
+            else aj[l] = novo;
+          }
+          return { ...m, ajustesFuros: aj };
+        }),
+      })),
+    [atualizar],
+  );
+  const ajustarFerragem = useCallback(
+    (ids: string[], ferragemId: string, quantidade: number) =>
+      atualizar((x) => ({
+        ...x,
+        modulos: (x.modulos ?? []).map((m) => {
+          const meus = ids.filter((id) => moduloDaPeca(id) === m.id).map(idLocal);
+          if (!meus.length) return m;
+          const aj = { ...(m.ajustesFerragens ?? {}) };
+          for (const l of meus) aj[l] = { ...(aj[l] ?? {}), [ferragemId]: quantidade };
+          return { ...m, ajustesFerragens: aj };
+        }),
+      })),
+    [atualizar],
+  );
   const semOverridesDe = (x: Projeto, mid: string) => x.pecas.filter((q) => moduloDaPeca(q.id) !== mid);
 
   const adicionarModulo = (templateId: string, lado: Lado, base?: Modulo) => {
@@ -585,7 +636,15 @@ export function Editor({ id }: { id: string }) {
                 <ArrowLeft className="size-4" /> Projetos
               </button>
               <TextoInput ariaLabel="Nome do projeto" className="h-10 font-cond text-lg font-semibold" valor={p.nome} onChange={(v) => atualizar((x) => ({ ...x, nome: v }))} />
+              <button onClick={() => setParamsAbertos(!paramsAbertos)} aria-expanded={paramsAbertos} className="mt-2 flex w-full items-center justify-between rounded-md border border-linha bg-painel-2 px-3 py-2 text-[13px] font-medium lg:hidden">
+                <span>
+                  Medidas e opções
+                  {montado?.limites && <span className="ml-1.5 font-normal text-tinta-3 num">{[0, 1, 2].map((i) => Math.round(montado.limites!.max[i] - montado.limites!.min[i])).join(' × ')}</span>}
+                </span>
+                <ChevronDown className={cx('size-4 transition-transform', paramsAbertos && 'rotate-180')} />
+              </button>
             </div>
+            <div className={cx('space-y-5', !paramsAbertos && 'hidden lg:block')}>
 
             {livre ? (
               <p className="text-[13px] text-tinta-3">Lista livre: adicione as peças na tabela ao lado.</p>
@@ -636,6 +695,7 @@ export function Editor({ id }: { id: string }) {
                 <Plus className="size-4" /> Adicionar custo (embalagem, etiqueta…)
               </button>
             </div>
+            </div>
           </div>
         </aside>
 
@@ -670,7 +730,7 @@ export function Editor({ id }: { id: string }) {
               </Suspense>
 
               {/* ferramentas */}
-              <div className="absolute left-3 top-3 flex flex-wrap items-center gap-1.5">
+              <div className="absolute left-3 right-3 top-3 flex flex-wrap items-center gap-1.5 lg:right-[200px]">
                 <div className="flex rounded-md border border-linha bg-painel/95 p-0.5">
                   {botaoFerramenta('cursor', <MousePointer2 className="size-4" />, 'Selecionar e mover (V)')}
                   {botaoFerramenta('mao', <Hand className="size-4" />, 'Mão: girar a vista (H ou segure espaço)')}
@@ -711,7 +771,7 @@ export function Editor({ id }: { id: string }) {
                   )}
                 </div>
               )}
-              <div className="absolute right-3 top-3 flex rounded-md border border-linha bg-painel/90 p-0.5">
+              <div className="absolute bottom-14 right-3 flex rounded-md border border-linha bg-painel/90 p-0.5 lg:bottom-auto lg:top-3">
                 {(['iso', 'frente', 'lado', 'topo'] as Vista[]).map((v) => (
                   <button
                     key={v}
@@ -739,6 +799,7 @@ export function Editor({ id }: { id: string }) {
                 onAdicionarTabua={() => modSel && adicionarTabua(modSel.modulo.id)}
                 onDuplicarModulo={() => modSel && duplicarModulo(modSel.modulo.id)}
                 onRemoverModulo={() => modSel && removerModulo(modSel.modulo.id)}
+                onFuros={pecaSel && !livre ? () => setEditandoFuros(pecaSel.id) : undefined}
               />
               {!modSel && montado?.limites && (
                 <div className="absolute bottom-3 left-3 rounded-md border border-linha bg-painel/90 px-2 py-1 text-[12px] text-tinta-2 num">
@@ -823,7 +884,7 @@ export function Editor({ id }: { id: string }) {
                 )}
               </>
             )}
-            {aba === 'desenhos' && <DesenhosView pecas={pecas} numeros={numeros} catalogo={catalogo} projeto={p.nome} usinagem={config.usinagem} />}
+            {aba === 'desenhos' && <DesenhosView pecas={pecas} numeros={numeros} catalogo={catalogo} projeto={p.nome} usinagem={config.usinagem} onEditar={livre ? undefined : setEditandoFuros} />}
             {aba === 'montagem' && montado && (
               <ManualView montado={montado} catalogo={catalogo} numeros={numeros} projeto={p.nome} exportarAoAbrir={exportarManual} onExportado={() => setExportarManual(false)} />
             )}
@@ -870,6 +931,34 @@ export function Editor({ id }: { id: string }) {
           </div>
         </main>
       </div>
+
+      {editandoFuros &&
+        furacao &&
+        (() => {
+          const peca = pecas.find((x) => x.id === editandoFuros);
+          if (!peca) return null;
+          const iguais = iguaisA(peca.id);
+          return (
+            <EditorFuros
+              peca={peca}
+              numero={iguais.map((id) => numeros.get(id)).filter(Boolean).join(', ')}
+              iguais={iguais}
+              furos={furacao.get(peca.id) ?? []}
+              ferragens={(montado?.ferragens ?? []).filter((f) => f.pecaId === peca.id)}
+              catalogo={catalogo}
+              usinagem={config.usinagem}
+              onTirarFuro={(f: Furo) =>
+                ajustarFuros(iguais, (a) =>
+                  f.manual ? { ...a, extras: a.extras.filter((x) => chaveFuro(x) !== chaveFuro(f)) } : { ...a, removidos: [...new Set([...a.removidos, chaveFuro(f)])] },
+                )
+              }
+              onAdicionarFuro={(f: Furo) => ajustarFuros(iguais, (a) => ({ ...a, extras: [...a.extras, f] }))}
+              onRestaurarFuros={() => ajustarFuros(iguais, () => ({ removidos: [], extras: [] }))}
+              onFerragem={(fid, q) => ajustarFerragem(iguais, fid, q)}
+              onFechar={() => setEditandoFuros(null)}
+            />
+          );
+        })()}
 
       {/* ------------ rodapé fixo ------------ */}
       <footer className="sticky bottom-0 z-10 flex h-14 items-center gap-6 overflow-x-auto border-t border-linha bg-tinta px-4 text-white">

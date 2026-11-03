@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { Catalogo } from '../domain/types';
 import type { ParamDef, Params, Template } from '../templates';
 import { Campo, Interruptor, NumeroInput, Segmentos, Selecao, cx } from './ui';
+import { AmostraChapa } from './AmostraChapa';
 
 function Controle({ d, valor, onChange, catalogo }: { d: ParamDef; valor: Params[string]; onChange: (v: Params[string]) => void; catalogo: Catalogo }) {
   switch (d.tipo) {
@@ -32,7 +33,10 @@ function Controle({ d, valor, onChange, catalogo }: { d: ParamDef; valor: Params
     case 'chapa':
       return (
         <Campo label={d.label} dica={d.dica}>
-          <Selecao ariaLabel={d.label} valor={String(valor)} onChange={onChange} opcoes={catalogo.chapas.map((c) => ({ valor: c.id, label: c.nome }))} />
+          <div className="flex items-center gap-2">
+            <AmostraChapa chapa={catalogo.chapas.find((c) => c.id === String(valor))} />
+            <Selecao ariaLabel={d.label} valor={String(valor)} onChange={onChange} opcoes={[...(d.igualA ? [{ valor: '', label: 'Igual à chapa do corpo' }] : []), ...catalogo.chapas.map((c) => ({ valor: c.id, label: c.nome }))]} />
+          </div>
         </Campo>
       );
     case 'fita':

@@ -1,9 +1,7 @@
 import type { ItemFerragem, Peca } from '../domain/types';
-import { bordas, caixa, chapaPorId, fitaPorId, montarCaixa, peca } from './comum';
+import { CORREDICAS, chapaPorId, criarGavetas, fitaPorId, montarCaixa } from './comum';
 import { bool, num, str, type Template } from './types';
 
-/** comprimentos comerciais de corrediça telescópica, mm */
-const CORREDICAS = [250, 300, 350, 400, 450, 500, 550, 600];
 
 export const gaveteiro: Template = {
   id: 'gaveteiro',
@@ -16,6 +14,7 @@ export const gaveteiro: Template = {
     { id: 'altura', label: 'Altura', tipo: 'numero', padrao: 600, unidade: 'mm', min: 150, max: 1500, passo: 10 },
     { id: 'profundidade', label: 'Profundidade', tipo: 'numero', padrao: 450, unidade: 'mm', min: 280, max: 650, passo: 5 },
     { id: 'chapaId', label: 'Chapa', tipo: 'chapa', padrao: 'mdf-branco-15' },
+    { id: 'chapaPortaId', label: 'Chapa das frentes', tipo: 'chapa', padrao: '', igualA: 'chapaId' },
     { id: 'gavetas', label: 'Gavetas', tipo: 'numero', padrao: 3, min: 1, max: 8, passo: 1 },
     { id: 'puxador', label: 'Puxador', tipo: 'booleano', padrao: true },
     { id: 'rodape', label: 'Rodapé', tipo: 'numero', padrao: 0, unidade: 'mm', min: 0, max: 200, passo: 10, dica: '0 = sem rodapé.' },
@@ -42,59 +41,34 @@ export const gaveteiro: Template = {
     const P = num(p, 'profundidade');
     const n = Math.max(1, Math.round(num(p, 'gavetas')));
     const f = num(p, 'folgaFrente');
+    const wFrente = Math.floor(L - 2 * f);
     const folgaC = num(p, 'folgaCorredica');
     const cx = montarCaixa({ L, A, P, chapa, fita, montagem: 'laterais_inteiras', fundo: hdf, fundoEmbutido: false, rodape: num(p, 'rodape'), removidas });
-    const { e } = cx;
     const pecas: Peca[] = [...cx.pecas];
     const ferragens: ItemFerragem[] = [];
 
-    const profUtil = P - cx.zb - 10;
-    const corr = [...CORREDICAS].reverse().find((c) => c <= profUtil) ?? CORREDICAS[0];
-    const hFrente = Math.floor((A - cx.yBase - (n + 1) * f) / n);
-    const wFrente = Math.floor(L - 2 * f);
-    const eg = chapaG.espessura;
-    const Wg = Math.floor(cx.xi1 - cx.xi0 - 2 * folgaC);
-    const hc = Math.max(60, hFrente - 40);
-    const curso = Math.round(corr * 0.75);
-    const tFundoG = hdf?.espessura ?? 3;
-
-    for (let k = 0; k < n; k++) {
-      const yF = cx.yBase + f + k * (hFrente + f);
-      const g = `gaveta-${k + 1}`;
-      const frente = peca({
-        id: `${g}-frente`,
-        nome: `Frente da gaveta ${k + 1}`,
-        papel: 'porta',
-        chapa,
-        comprimento: wFrente,
-        largura: hFrente,
-        bordas: bordas(fita, { c1: true, c2: true, l1: true, l2: true }),
-        furos: [{ tipo: 'puxador', quantidade: bool(p, 'puxador') ? 1 : 0 }, { tipo: 'parafuso', quantidade: 4 }],
-        box3d: { ...caixa(-wFrente / 2, wFrente / 2, yF, yF + hFrente, P, P + e), gaveta: curso },
-      });
-      pecas.push(frente);
-      ferragens.push({ ferragemId: 'corredica-telescopica', quantidade: 1, pecaId: frente.id });
-      if (bool(p, 'puxador')) ferragens.push({ ferragemId: 'puxador', quantidade: 1, pecaId: frente.id });
-
-      // caixa da gaveta: laterais por fora, frente interna e traseira entre elas, fundo pregado por baixo
-      const yc = yF + 20; // folga para o fundo da gaveta não raspar na base
-      const zc0 = P - corr;
-      const xg0 = -Wg / 2;
-      const xg1 = Wg / 2;
-      const sub = (id: string, nome: string, comprimento: number, largura: number, box: ReturnType<typeof caixa>, c?: typeof chapa, b = false) => ({
-        ...peca({ id: `${g}-${id}`, nome: `Gaveta ${k + 1}: ${nome}`, papel: 'outro', chapa: c ?? chapaG, comprimento, largura, bordas: b ? bordas(fita, { c1: true }) : undefined, furos: c ? [] : [{ tipo: 'cavilha_8', quantidade: 2 }], box3d: { ...box, gaveta: curso } }),
-        dependeDe: frente.id,
-      });
-      pecas.push(
-        sub('lat-esq', 'lateral', corr, hc, caixa(xg0, xg0 + eg, yc, yc + hc, zc0, P), undefined, true),
-        sub('lat-dir', 'lateral', corr, hc, caixa(xg1 - eg, xg1, yc, yc + hc, zc0, P), undefined, true),
-        sub('contrafrente', 'contrafrente', Wg - 2 * eg, hc, caixa(xg0 + eg, xg1 - eg, yc, yc + hc, P - eg, P)),
-        sub('traseira', 'traseira', Wg - 2 * eg, hc, caixa(xg0 + eg, xg1 - eg, yc, yc + hc, zc0, zc0 + eg), undefined, true),
-      );
-      if (hdf) pecas.push(sub('fundo', 'fundo', corr, Wg, caixa(xg0, xg1, yc - tFundoG, yc, zc0, P), hdf));
-    }
+    const gav = criarGavetas({
+      xi0: cx.xi0,
+      xi1: cx.xi1,
+      y0: cx.yBase + f / 2,
+      y1: A - f / 2,
+      n,
+      zFrente: P,
+      zFundo: cx.zb,
+      chapa,
+      chapaG,
+      chapaFrente: str(p, 'chapaPortaId') ? chapaPorId(catalogo, str(p, 'chapaPortaId')) : undefined,
+      fundoG: hdf,
+      fita,
+      folgaFrente: f,
+      folgaCorredica: folgaC,
+      puxador: bool(p, 'puxador'),
+      modo: { tipo: 'sobreposta', xa: -wFrente / 2, xb: wFrente / 2 },
+    });
+    pecas.push(...gav.pecas);
+    ferragens.push(...gav.ferragens);
 
     ferragens.push({ ferragemId: 'parafuso-4x40', quantidade: 16 + 8 * n });
-    return { pecas, ferragens, extras: [], dimensoes: { largura: L, altura: A, profundidade: P + e } };
+    return { pecas, ferragens, extras: [], dimensoes: { largura: L, altura: A, profundidade: P + chapa.espessura } };
   },
 };

@@ -83,3 +83,8 @@ $$;
 revoke all on function public.conta_ativa() from public;
 grant execute on function public.conta_ativa() to authenticated;
 -- (as políticas de insert/update de perfis, projetos e compartilhamentos passam a exigir conta_ativa())
+
+-- Consulta mínima chamada todo dia pela Vercel (api/manter-ativo.ts) para o plano grátis não pausar o projeto.
+create or replace function public.ping() returns integer language sql stable set search_path = '' as $$ select 1 $$;
+revoke all on function public.ping() from public;
+grant execute on function public.ping() to anon, authenticated;

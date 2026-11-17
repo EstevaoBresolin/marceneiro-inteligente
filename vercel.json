@@ -1,1 +1,6 @@
-{ "buildCommand": "npm run build", "outputDirectory": "dist", "framework": "vite" }
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "crons": [{ "path": "/api/manter-ativo", "schedule": "17 9 * * *" }]
+}
